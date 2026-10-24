@@ -1,7 +1,9 @@
 export const TICKET_STATUS = {
   open: "Aberto",
   in_progress: "Em andamento",
+  pending_feedback: "Aguardando feedback",
   resolved: "Resolvido",
+  closed: "Fechado",
 } as const;
 
 export type TicketStatus = keyof typeof TICKET_STATUS;

@@ -1,4 +1,4 @@
-import type { Ticket } from "./types";
+import type { Ticket, ClosedReason } from "./types";
 import type { TicketCategory, TicketStatus } from "./constants";
 
 // ─── Seed data ────────────────────────────────────────────────────
@@ -15,6 +15,10 @@ const SEED_TICKETS: Ticket[] = [
     createdAt: "2024-11-01T10:00:00Z",
     tenantId: "t_01",
     assignedTo: null,
+    disconnectedAt: null,
+    feedbackDeadline: null,
+    relatedTicketId: null,
+    closedReason: null,
   },
   {
     id: "tkt_002",
@@ -27,6 +31,10 @@ const SEED_TICKETS: Ticket[] = [
     createdAt: "2024-11-02T14:30:00Z",
     tenantId: "t_01",
     assignedTo: "u_01",
+    disconnectedAt: null,
+    feedbackDeadline: null,
+    relatedTicketId: null,
+    closedReason: null,
   },
   {
     id: "tkt_003",
@@ -39,6 +47,10 @@ const SEED_TICKETS: Ticket[] = [
     createdAt: "2024-11-03T09:15:00Z",
     tenantId: "t_01",
     assignedTo: null,
+    disconnectedAt: null,
+    feedbackDeadline: null,
+    relatedTicketId: null,
+    closedReason: null,
   },
   {
     id: "tkt_004",
@@ -51,6 +63,10 @@ const SEED_TICKETS: Ticket[] = [
     createdAt: "2024-11-04T11:00:00Z",
     tenantId: "t_01",
     assignedTo: "u_01",
+    disconnectedAt: null,
+    feedbackDeadline: null,
+    relatedTicketId: null,
+    closedReason: null,
   },
   {
     id: "tkt_005",
@@ -63,6 +79,10 @@ const SEED_TICKETS: Ticket[] = [
     createdAt: "2024-11-05T16:45:00Z",
     tenantId: "t_01",
     assignedTo: "u_01",
+    disconnectedAt: null,
+    feedbackDeadline: null,
+    relatedTicketId: null,
+    closedReason: null,
   },
   {
     id: "tkt_006",
@@ -75,6 +95,10 @@ const SEED_TICKETS: Ticket[] = [
     createdAt: "2024-11-06T08:30:00Z",
     tenantId: "t_01",
     assignedTo: null,
+    disconnectedAt: null,
+    feedbackDeadline: null,
+    relatedTicketId: null,
+    closedReason: null,
   },
   {
     id: "tkt_007",
@@ -87,6 +111,10 @@ const SEED_TICKETS: Ticket[] = [
     createdAt: "2024-11-07T13:20:00Z",
     tenantId: "t_01",
     assignedTo: null,
+    disconnectedAt: null,
+    feedbackDeadline: null,
+    relatedTicketId: null,
+    closedReason: null,
   },
   {
     id: "tkt_008",
@@ -99,6 +127,10 @@ const SEED_TICKETS: Ticket[] = [
     createdAt: "2024-11-08T10:00:00Z",
     tenantId: "t_02",
     assignedTo: null,
+    disconnectedAt: null,
+    feedbackDeadline: null,
+    relatedTicketId: null,
+    closedReason: null,
   },
 ];
 
@@ -169,6 +201,10 @@ export function createTicket(input: {
     createdAt: new Date().toISOString(),
     tenantId: input.tenantId,
     assignedTo: null,
+    disconnectedAt: null,
+    feedbackDeadline: null,
+    relatedTicketId: null,
+    closedReason: null,
   };
 
   tickets.push(ticket);
@@ -192,5 +228,116 @@ export function assignTicket(
   ticket.assignedTo = adminUserId;
   ticket.status = "in_progress";
 
+  return ticket;
+}
+
+// ─── Thread Lifecycle ────────────────────────────────────────────
+
+const FEEDBACK_DEADLINE_HOURS = 24;
+
+/**
+ * Admin desconecta/encerra a conversa.
+ * Muda status para pending_feedback e define deadline de 24h.
+ * Só funciona para tickets in_progress.
+ */
+export function disconnectTicket(ticketId: string): Ticket | null {
+  const ticket = tickets.find((t) => t.id === ticketId);
+
+  if (!ticket) return null;
+  if (ticket.status !== "in_progress") return null;
+
+  const now = new Date();
+  const deadline = new Date(now.getTime() + FEEDBACK_DEADLINE_HOURS * 60 * 60 * 1000);
+
+  ticket.status = "pending_feedback";
+  ticket.disconnectedAt = now.toISOString();
+  ticket.feedbackDeadline = deadline.toISOString();
+
+  return ticket;
+}
+
+/**
+ * Cliente envia feedback sobre a resolução do chamado.
+ * - "resolved" → status resolved, closedReason client_confirmed
+ * - "unresolved" → status closed, closedReason client_unresolved
+ * Só funciona para tickets em pending_feedback.
+ */
+export function submitTicketFeedback(
+  ticketId: string,
+  resolution: "resolved" | "unresolved"
+): Ticket | null {
+  const ticket = tickets.find((t) => t.id === ticketId);
+
+  if (!ticket) return null;
+  if (ticket.status !== "pending_feedback") return null;
+
+  if (resolution === "resolved") {
+    ticket.status = "resolved";
+    ticket.closedReason = "client_confirmed";
+  } else {
+    ticket.status = "closed";
+    ticket.closedReason = "client_unresolved";
+  }
+
+  return ticket;
+}
+
+/**
+ * Verifica se o deadline de feedback expirou (check-on-access).
+ * Se sim, auto-fecha o ticket como resolved com closedReason auto_closed.
+ * Retorna o ticket atualizado ou null se não precisava fechar.
+ */
+export function checkAutoClose(ticketId: string): Ticket | null {
+  const ticket = tickets.find((t) => t.id === ticketId);
+
+  if (!ticket) return null;
+  if (ticket.status !== "pending_feedback") return null;
+  if (!ticket.feedbackDeadline) return null;
+
+  const now = new Date();
+  const deadline = new Date(ticket.feedbackDeadline);
+
+  if (now <= deadline) return null;
+
+  ticket.status = "resolved";
+  ticket.closedReason = "auto_closed";
+
+  return ticket;
+}
+
+/**
+ * Cria um novo ticket vinculado a um ticket original (quando cliente
+ * informa que o problema não foi resolvido).
+ * Retorna null se o ticket original não existir.
+ */
+export function createRelatedTicket(input: {
+  originalTicketId: string;
+  title: string;
+  description: string;
+  requester: string;
+  category: TicketCategory;
+  tenantId: string;
+}): Ticket | null {
+  const original = tickets.find((t) => t.id === input.originalTicketId);
+  if (!original) return null;
+
+  const ticket: Ticket = {
+    id: `tkt_${String(nextId++).padStart(3, "0")}`,
+    title: input.title,
+    requester: input.requester,
+    status: "open",
+    priority: "medium",
+    category: input.category as TicketCategory,
+    description: input.description,
+    createdAt: new Date().toISOString(),
+    tenantId: input.tenantId,
+    assignedTo: null,
+    disconnectedAt: null,
+    feedbackDeadline: null,
+    relatedTicketId: input.originalTicketId,
+    closedReason: null,
+  };
+
+  tickets.push(ticket);
   return ticket;
 }

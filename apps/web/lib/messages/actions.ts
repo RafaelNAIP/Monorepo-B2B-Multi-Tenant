@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createMessageSchema, createThreadAccessSchema, feedbackSchema } from "./schemas";
 import { createMessage, createThreadAccess } from "./data";
+import { submitTicketFeedback } from "@/lib/tickets/data";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -125,13 +126,21 @@ export async function submitFeedbackAction(
     };
   }
 
-  // TODO: Integrar com ticket domain (Task 5) — atualizar status do ticket
-  // Se resolved → marcar ticket como "resolved"
-  // Se unresolved → sinalizar para criar novo ticket com relatedTicketId
+  const result = submitTicketFeedback(parsed.data.ticketId, parsed.data.resolution);
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Chamado não encontrado ou não está aguardando feedback.",
+      fieldErrors: {},
+    };
+  }
 
   const tenantSlug = formData.get("tenantSlug") as string;
   if (tenantSlug) {
     revalidatePath(`/${tenantSlug}/thread`);
+    revalidatePath(`/${tenantSlug}/admin/chamados`);
+    revalidatePath(`/${tenantSlug}/admin/chamados/${parsed.data.ticketId}`);
   }
 
   return {

@@ -11,7 +11,7 @@ import {
   submitFeedbackAction,
 } from "../../lib/messages/actions";
 import { resetMessages, getMessagesByTicket, getThreadAccessByTicket } from "../../lib/messages/data";
-import { resetTickets, getTicketById } from "../../lib/tickets/data";
+import { resetTickets, getTicketById, assignTicket, disconnectTicket } from "../../lib/tickets/data";
 
 // Helper para criar FormData
 function makeFormData(data: Record<string, string>): FormData {
@@ -188,6 +188,10 @@ describe("Server Actions de mensagens", () => {
     });
 
     it("aceita feedback 'resolved' com dados válidos", async () => {
+      // Preparar ticket: open → in_progress → pending_feedback
+      assignTicket("tkt_001", "u_01");
+      disconnectTicket("tkt_001");
+
       const fd = makeFormData({
         ticketId: "tkt_001",
         resolution: "resolved",
@@ -196,9 +200,17 @@ describe("Server Actions de mensagens", () => {
 
       const result = await submitFeedbackAction(initialState, fd);
       expect(result.success).toBe(true);
+
+      const ticket = getTicketById("tkt_001");
+      expect(ticket?.status).toBe("resolved");
+      expect(ticket?.closedReason).toBe("client_confirmed");
     });
 
     it("aceita feedback 'unresolved' com dados válidos", async () => {
+      // Preparar ticket: open → in_progress → pending_feedback
+      assignTicket("tkt_001", "u_01");
+      disconnectTicket("tkt_001");
+
       const fd = makeFormData({
         ticketId: "tkt_001",
         resolution: "unresolved",
@@ -207,6 +219,23 @@ describe("Server Actions de mensagens", () => {
 
       const result = await submitFeedbackAction(initialState, fd);
       expect(result.success).toBe(true);
+
+      const ticket = getTicketById("tkt_001");
+      expect(ticket?.status).toBe("closed");
+      expect(ticket?.closedReason).toBe("client_unresolved");
+    });
+
+    it("retorna erro quando ticket não está em pending_feedback", async () => {
+      // tkt_001 está "open" por padrão — não aceita feedback
+      const fd = makeFormData({
+        ticketId: "tkt_002",
+        resolution: "resolved",
+        tenantSlug: "demo",
+      });
+
+      const result = await submitFeedbackAction(initialState, fd);
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Chamado não encontrado ou não está aguardando feedback.");
     });
   });
 });

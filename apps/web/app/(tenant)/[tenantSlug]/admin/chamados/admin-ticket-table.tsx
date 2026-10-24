@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useActionState } from "react";
+import Link from "next/link";
 
 import {
   Badge,
@@ -171,32 +172,40 @@ export function AdminTicketTable({
                       : "—"}
                   </TableCell>
                   <TableCell>
-                    {ticket.status === "open" ? (
-                      <form action={assignAction}>
-                        <input
-                          type="hidden"
-                          name="ticketId"
-                          value={ticket.id}
-                        />
-                        <input
-                          type="hidden"
-                          name="adminUserId"
-                          value={adminUserId}
-                        />
-                        <input
-                          type="hidden"
-                          name="tenantSlug"
-                          value={tenantSlug}
-                        />
-                        <Button
-                          type="submit"
-                          size="sm"
-                          disabled={isAssigning}
-                        >
-                          {isAssigning ? "..." : "Assumir"}
-                        </Button>
-                      </form>
-                    ) : null}
+                    <div className="flex gap-2">
+                      {ticket.status === "open" ? (
+                        <form action={assignAction}>
+                          <input
+                            type="hidden"
+                            name="ticketId"
+                            value={ticket.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="adminUserId"
+                            value={adminUserId}
+                          />
+                          <input
+                            type="hidden"
+                            name="tenantSlug"
+                            value={tenantSlug}
+                          />
+                          <Button
+                            type="submit"
+                            size="sm"
+                            disabled={isAssigning}
+                          >
+                            {isAssigning ? "..." : "Assumir"}
+                          </Button>
+                        </form>
+                      ) : null}
+                      <Link
+                        href={`/${tenantSlug}/admin/chamados/${ticket.id}`}
+                        className="inline-flex h-8 items-center rounded-md border border-[var(--color-border)] px-3 text-xs font-medium text-[var(--color-foreground)] transition-colors hover:bg-[var(--color-muted)]"
+                      >
+                        Ver
+                      </Link>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

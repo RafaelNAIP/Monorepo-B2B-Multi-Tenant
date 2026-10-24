@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createTicketSchema, assignTicketSchema } from "./schemas";
-import { createTicket, assignTicket } from "./data";
+import { createTicket, assignTicket, disconnectTicket } from "./data";
 
 export interface TicketActionState {
   success: boolean;
@@ -88,6 +88,42 @@ export async function assignTicketAction(
 
   if (tenantSlug) {
     revalidatePath(`/${tenantSlug}/admin/chamados`);
+  }
+
+  return {
+    success: true,
+    error: null,
+  };
+}
+
+// ─── Disconnect Ticket Action ───────────────────────────────────
+
+export async function disconnectTicketAction(
+  _prevState: AssignTicketActionState,
+  formData: FormData
+): Promise<AssignTicketActionState> {
+  const ticketId = formData.get("ticketId") as string;
+  const tenantSlug = formData.get("tenantSlug") as string;
+
+  if (!ticketId) {
+    return {
+      success: false,
+      error: "ID do chamado é obrigatório.",
+    };
+  }
+
+  const result = disconnectTicket(ticketId);
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Chamado não encontrado ou não está em andamento.",
+    };
+  }
+
+  if (tenantSlug) {
+    revalidatePath(`/${tenantSlug}/admin/chamados`);
+    revalidatePath(`/${tenantSlug}/admin/chamados/${ticketId}`);
   }
 
   return {

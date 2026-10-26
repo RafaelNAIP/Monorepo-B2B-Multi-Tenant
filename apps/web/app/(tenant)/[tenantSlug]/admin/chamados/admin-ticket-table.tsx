@@ -136,7 +136,7 @@ export function AdminTicketTable({
                 <TableHead className="w-28">Status</TableHead>
                 <TableHead className="w-24">Prioridade</TableHead>
                 <TableHead className="w-32">Responsável</TableHead>
-                <TableHead className="w-28">Ação</TableHead>
+                <TableHead className="w-36">Ação</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -201,7 +201,7 @@ export function AdminTicketTable({
                       ) : null}
                       <Link
                         href={`/${tenantSlug}/admin/chamados/${ticket.id}`}
-                        className="inline-flex h-8 items-center rounded-md border border-[var(--color-border)] px-3 text-xs font-medium text-[var(--color-foreground)] transition-colors hover:bg-[var(--color-muted)]"
+                        className="inline-flex h-8 items-center rounded-md bg-[var(--color-primary,#2563eb)] px-3 text-xs font-medium text-white transition-colors hover:opacity-90"
                       >
                         Ver
                       </Link>

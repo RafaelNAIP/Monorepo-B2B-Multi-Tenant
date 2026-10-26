@@ -134,15 +134,28 @@ const SEED_TICKETS: Ticket[] = [
   },
 ];
 
-// ─── In-memory store ──────────────────────────────────────────────
+// ─── In-memory store (globalThis para sobreviver hot-reload) ─────
 
-let tickets: Ticket[] = structuredClone(SEED_TICKETS);
-let nextId = 9;
+interface TicketStore {
+  tickets: Ticket[];
+  nextId: number;
+}
+
+const globalStore = globalThis as unknown as { __ticketStore?: TicketStore };
+
+if (!globalStore.__ticketStore) {
+  globalStore.__ticketStore = {
+    tickets: structuredClone(SEED_TICKETS),
+    nextId: 9,
+  };
+}
+
+const store = globalStore.__ticketStore;
 
 /** Resets the store to initial seed data (used in tests) */
 export function resetTickets(): void {
-  tickets = structuredClone(SEED_TICKETS);
-  nextId = 9;
+  store.tickets = structuredClone(SEED_TICKETS);
+  store.nextId = 9;
 }
 
 // ─── Filters ──────────────────────────────────────────────────────
@@ -159,7 +172,7 @@ interface TicketFilters {
  * Search is case-insensitive and matches against title and requester.
  */
 export function getTickets(tenantId: string, filters?: TicketFilters): Ticket[] {
-  let result = tickets.filter((t) => t.tenantId === tenantId);
+  let result = store.tickets.filter((t) => t.tenantId === tenantId);
 
   if (filters?.status) {
     result = result.filter((t) => t.status === filters.status);
@@ -179,7 +192,7 @@ export function getTickets(tenantId: string, filters?: TicketFilters): Ticket[] 
 
 /** Returns a ticket by ID, or undefined if not found. */
 export function getTicketById(id: string): Ticket | undefined {
-  return tickets.find((t) => t.id === id);
+  return store.tickets.find((t) => t.id === id);
 }
 
 /** Creates a new ticket with default status "open" and priority "medium". */
@@ -191,7 +204,7 @@ export function createTicket(input: {
   requester: string;
 }): Ticket {
   const ticket: Ticket = {
-    id: `tkt_${String(nextId++).padStart(3, "0")}`,
+    id: `tkt_${String(store.nextId++).padStart(3, "0")}`,
     title: input.title,
     requester: input.requester,
     status: "open",
@@ -207,7 +220,7 @@ export function createTicket(input: {
     closedReason: null,
   };
 
-  tickets.push(ticket);
+  store.tickets.push(ticket);
   return ticket;
 }
 
@@ -220,7 +233,7 @@ export function assignTicket(
   ticketId: string,
   adminUserId: string
 ): Ticket | null {
-  const ticket = tickets.find((t) => t.id === ticketId);
+  const ticket = store.tickets.find((t) => t.id === ticketId);
 
   if (!ticket) return null;
   if (ticket.status !== "open") return null;
@@ -241,7 +254,7 @@ const FEEDBACK_DEADLINE_HOURS = 24;
  * Só funciona para tickets in_progress.
  */
 export function disconnectTicket(ticketId: string): Ticket | null {
-  const ticket = tickets.find((t) => t.id === ticketId);
+  const ticket = store.tickets.find((t) => t.id === ticketId);
 
   if (!ticket) return null;
   if (ticket.status !== "in_progress") return null;
@@ -266,7 +279,7 @@ export function submitTicketFeedback(
   ticketId: string,
   resolution: "resolved" | "unresolved"
 ): Ticket | null {
-  const ticket = tickets.find((t) => t.id === ticketId);
+  const ticket = store.tickets.find((t) => t.id === ticketId);
 
   if (!ticket) return null;
   if (ticket.status !== "pending_feedback") return null;
@@ -288,7 +301,7 @@ export function submitTicketFeedback(
  * Retorna o ticket atualizado ou null se não precisava fechar.
  */
 export function checkAutoClose(ticketId: string): Ticket | null {
-  const ticket = tickets.find((t) => t.id === ticketId);
+  const ticket = store.tickets.find((t) => t.id === ticketId);
 
   if (!ticket) return null;
   if (ticket.status !== "pending_feedback") return null;
@@ -318,11 +331,11 @@ export function createRelatedTicket(input: {
   category: TicketCategory;
   tenantId: string;
 }): Ticket | null {
-  const original = tickets.find((t) => t.id === input.originalTicketId);
+  const original = store.tickets.find((t) => t.id === input.originalTicketId);
   if (!original) return null;
 
   const ticket: Ticket = {
-    id: `tkt_${String(nextId++).padStart(3, "0")}`,
+    id: `tkt_${String(store.nextId++).padStart(3, "0")}`,
     title: input.title,
     requester: input.requester,
     status: "open",
@@ -338,6 +351,6 @@ export function createRelatedTicket(input: {
     closedReason: null,
   };
 
-  tickets.push(ticket);
+  store.tickets.push(ticket);
   return ticket;
 }

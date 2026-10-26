@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 
 import { createMessageSchema, createThreadAccessSchema, feedbackSchema } from "./schemas";
-import { createMessage, createThreadAccess } from "./data";
-import { submitTicketFeedback } from "@/lib/tickets/data";
+import { createMessage, createThreadAccess, getMessagesByTicket } from "./data";
+import { submitTicketFeedback, getTicketById } from "@/lib/tickets/data";
+import type { Message } from "./types";
+import type { Ticket } from "@/lib/tickets/types";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -13,6 +15,25 @@ export interface MessageActionState {
   error: string | null;
   fieldErrors: Record<string, string[]>;
   threadToken?: string;
+}
+
+// ─── Polling action (atualização em tempo real para mock) ──────
+
+export interface ThreadPollResult {
+  messages: Message[];
+  ticket: Ticket | null;
+}
+
+/**
+ * Server Action para polling — retorna mensagens e status atual do ticket.
+ * Usada pelos componentes client para atualizar a thread sem reload.
+ */
+export async function pollThreadMessages(
+  ticketId: string
+): Promise<ThreadPollResult> {
+  const messages = getMessagesByTicket(ticketId);
+  const ticket = getTicketById(ticketId) ?? null;
+  return { messages, ticket };
 }
 
 // ─── sendMessageAction ──────────────────────────────────────────

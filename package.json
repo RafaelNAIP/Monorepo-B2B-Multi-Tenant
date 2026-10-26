@@ -2,9 +2,14 @@
   "name": "monorepo-empresa",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "npm -w @empresa/web run dev",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",

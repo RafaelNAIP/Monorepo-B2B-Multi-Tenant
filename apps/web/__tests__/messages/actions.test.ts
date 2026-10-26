@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
+import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
+
+vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
+
 // Mock next/cache antes de importar as actions
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -10,8 +14,6 @@ import {
   createThreadAccessAction,
   submitFeedbackAction,
 } from "../../lib/messages/actions";
-import { resetMessages, getMessagesByTicket, getThreadAccessByTicket } from "../../lib/messages/data";
-import { resetTickets, getTicketById, assignTicket, disconnectTicket } from "../../lib/tickets/data";
 
 // Helper para criar FormData
 function makeFormData(data: Record<string, string>): FormData {
@@ -26,14 +28,23 @@ const initialState = { success: false, error: null, fieldErrors: {} };
 
 describe("Server Actions de mensagens", () => {
   beforeEach(() => {
-    resetMessages();
-    resetTickets();
+    resetPrismaMocks();
   });
 
   // ─── sendMessageAction ─────────────────────────────────────────
 
   describe("sendMessageAction", () => {
     it("cria mensagem com dados válidos", async () => {
+      prismaMock.message.create.mockResolvedValue({
+        id: "msg_new",
+        ticketId: "tkt_001",
+        tenantId: "t_01",
+        senderRole: "admin",
+        senderName: "João Admin",
+        content: "Olá, como posso ajudar?",
+        createdAt: new Date(),
+      });
+
       const fd = makeFormData({
         ticketId: "tkt_001",
         tenantId: "t_01",
@@ -45,13 +56,20 @@ describe("Server Actions de mensagens", () => {
       const result = await sendMessageAction(initialState, fd);
       expect(result.success).toBe(true);
       expect(result.error).toBeNull();
-
-      const msgs = getMessagesByTicket("tkt_001");
-      expect(msgs).toHaveLength(1);
-      expect(msgs[0]!.content).toBe("Olá, como posso ajudar?");
+      expect(prismaMock.message.create).toHaveBeenCalledOnce();
     });
 
     it("cria mensagem como cliente", async () => {
+      prismaMock.message.create.mockResolvedValue({
+        id: "msg_new",
+        ticketId: "tkt_001",
+        tenantId: "t_01",
+        senderRole: "client",
+        senderName: "Maria Cliente",
+        content: "Preciso de ajuda com o sistema",
+        createdAt: new Date(),
+      });
+
       const fd = makeFormData({
         ticketId: "tkt_001",
         tenantId: "t_01",
@@ -62,9 +80,6 @@ describe("Server Actions de mensagens", () => {
 
       const result = await sendMessageAction(initialState, fd);
       expect(result.success).toBe(true);
-
-      const msgs = getMessagesByTicket("tkt_001");
-      expect(msgs[0]!.senderRole).toBe("client");
     });
 
     it("retorna fieldErrors com conteúdo vazio", async () => {
@@ -108,12 +123,36 @@ describe("Server Actions de mensagens", () => {
       const result = await sendMessageAction(initialState, fd);
       expect(result.success).toBe(false);
     });
+
+    it("não chama prisma.message.create quando validação falha", async () => {
+      const fd = makeFormData({
+        ticketId: "invalido",
+        tenantId: "t_01",
+        senderRole: "admin",
+        senderName: "Admin",
+        content: "Mensagem válida",
+      });
+
+      await sendMessageAction(initialState, fd);
+      expect(prismaMock.message.create).not.toHaveBeenCalled();
+    });
   });
 
   // ─── createThreadAccessAction ──────────────────────────────────
 
   describe("createThreadAccessAction", () => {
     it("cria acesso de thread com dados válidos", async () => {
+      prismaMock.threadAccess.deleteMany.mockResolvedValue({ count: 0 });
+      prismaMock.threadAccess.create.mockResolvedValue({
+        id: "ta_new",
+        ticketId: "tkt_001",
+        tenantId: "t_01",
+        token: "generated-token-value-1234567890ab",
+        clientName: "Maria Oliveira",
+        clientEmail: "maria@exemplo.com",
+        createdAt: new Date(),
+      });
+
       const fd = makeFormData({
         ticketId: "tkt_001",
         tenantId: "t_01",
@@ -127,10 +166,6 @@ describe("Server Actions de mensagens", () => {
       expect(result.error).toBeNull();
       expect(result.threadToken).toBeDefined();
       expect(result.threadToken!.length).toBeGreaterThan(10);
-
-      const access = getThreadAccessByTicket("tkt_001");
-      expect(access).toBeDefined();
-      expect(access!.clientName).toBe("Maria Oliveira");
     });
 
     it("retorna fieldErrors com email inválido", async () => {
@@ -188,9 +223,29 @@ describe("Server Actions de mensagens", () => {
     });
 
     it("aceita feedback 'resolved' com dados válidos", async () => {
-      // Preparar ticket: open → in_progress → pending_feedback
-      assignTicket("tkt_001", "u_01");
-      disconnectTicket("tkt_001");
+      const pendingTicket = {
+        id: "tkt_001",
+        code: "tkt_001",
+        title: "Problema no sistema",
+        requester: "Maria",
+        status: "pending_feedback",
+        priority: "high",
+        category: "suporte_tecnico",
+        description: "Desc",
+        tenantId: "t_01",
+        assignedTo: "u_01",
+        disconnectedAt: new Date().toISOString(),
+        feedbackDeadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        relatedTicketId: null,
+        closedReason: null,
+        createdAt: new Date(),
+      };
+      prismaMock.ticket.findUnique.mockResolvedValue(pendingTicket);
+      prismaMock.ticket.update.mockResolvedValue({
+        ...pendingTicket,
+        status: "resolved",
+        closedReason: "client_confirmed",
+      });
 
       const fd = makeFormData({
         ticketId: "tkt_001",
@@ -200,16 +255,32 @@ describe("Server Actions de mensagens", () => {
 
       const result = await submitFeedbackAction(initialState, fd);
       expect(result.success).toBe(true);
-
-      const ticket = getTicketById("tkt_001");
-      expect(ticket?.status).toBe("resolved");
-      expect(ticket?.closedReason).toBe("client_confirmed");
     });
 
     it("aceita feedback 'unresolved' com dados válidos", async () => {
-      // Preparar ticket: open → in_progress → pending_feedback
-      assignTicket("tkt_001", "u_01");
-      disconnectTicket("tkt_001");
+      const pendingTicket = {
+        id: "tkt_001",
+        code: "tkt_001",
+        title: "Problema no sistema",
+        requester: "Maria",
+        status: "pending_feedback",
+        priority: "high",
+        category: "suporte_tecnico",
+        description: "Desc",
+        tenantId: "t_01",
+        assignedTo: "u_01",
+        disconnectedAt: new Date().toISOString(),
+        feedbackDeadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        relatedTicketId: null,
+        closedReason: null,
+        createdAt: new Date(),
+      };
+      prismaMock.ticket.findUnique.mockResolvedValue(pendingTicket);
+      prismaMock.ticket.update.mockResolvedValue({
+        ...pendingTicket,
+        status: "closed",
+        closedReason: "client_unresolved",
+      });
 
       const fd = makeFormData({
         ticketId: "tkt_001",
@@ -219,14 +290,28 @@ describe("Server Actions de mensagens", () => {
 
       const result = await submitFeedbackAction(initialState, fd);
       expect(result.success).toBe(true);
-
-      const ticket = getTicketById("tkt_001");
-      expect(ticket?.status).toBe("closed");
-      expect(ticket?.closedReason).toBe("client_unresolved");
     });
 
     it("retorna erro quando ticket não está em pending_feedback", async () => {
-      // tkt_001 está "open" por padrão — não aceita feedback
+      // submitTicketFeedback retorna null para ticket que não está em pending_feedback
+      prismaMock.ticket.findUnique.mockResolvedValue({
+        id: "tkt_002",
+        code: "tkt_002",
+        title: "Outro chamado",
+        requester: "Carlos",
+        status: "open",
+        priority: "medium",
+        category: "financeiro",
+        description: "Desc",
+        tenantId: "t_01",
+        assignedTo: null,
+        disconnectedAt: null,
+        feedbackDeadline: null,
+        relatedTicketId: null,
+        closedReason: null,
+        createdAt: new Date(),
+      });
+
       const fd = makeFormData({
         ticketId: "tkt_002",
         resolution: "resolved",

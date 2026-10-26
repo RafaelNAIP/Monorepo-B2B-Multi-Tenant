@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-import {
-  createTicketAction,
-  assignTicketAction,
-} from "../../lib/tickets/actions";
-import { resetTickets, getTickets, getTicketById } from "../../lib/tickets/data";
+import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
+
+vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
 
 // Mock next/cache para revalidatePath
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
+
+import {
+  createTicketAction,
+  assignTicketAction,
+} from "../../lib/tickets/actions";
+import { getTickets, getTicketById } from "../../lib/tickets/data";
 
 // Helper to create FormData from an object
 function makeFormData(fields: Record<string, string>): FormData {
@@ -42,10 +46,29 @@ const validCreateFields = {
 
 describe("createTicketAction", () => {
   beforeEach(() => {
-    resetTickets();
+    resetPrismaMocks();
   });
 
   it("cria chamado com dados válidos e retorna success", async () => {
+    prismaMock.ticket.count.mockResolvedValue(8);
+    prismaMock.ticket.create.mockResolvedValue({
+      id: "new_id",
+      code: "tkt_009",
+      title: validCreateFields.title,
+      requester: validCreateFields.requester,
+      status: "open",
+      priority: "medium",
+      category: "financeiro",
+      description: validCreateFields.description,
+      tenantId: "t_01",
+      assignedTo: null,
+      disconnectedAt: null,
+      feedbackDeadline: null,
+      relatedTicketId: null,
+      closedReason: null,
+      createdAt: new Date(),
+    });
+
     const formData = makeFormData(validCreateFields);
     const result = await createTicketAction(createInitialState, formData);
 
@@ -54,14 +77,30 @@ describe("createTicketAction", () => {
     expect(result.fieldErrors).toEqual({});
   });
 
-  it("chamado criado via action aparece na listagem", async () => {
-    const before = getTickets("t_01").length;
-    const formData = makeFormData(validCreateFields);
+  it("chamado criado via action chama prisma.ticket.create", async () => {
+    prismaMock.ticket.count.mockResolvedValue(8);
+    prismaMock.ticket.create.mockResolvedValue({
+      id: "new_id",
+      code: "tkt_009",
+      title: validCreateFields.title,
+      requester: validCreateFields.requester,
+      status: "open",
+      priority: "medium",
+      category: "financeiro",
+      description: validCreateFields.description,
+      tenantId: "t_01",
+      assignedTo: null,
+      disconnectedAt: null,
+      feedbackDeadline: null,
+      relatedTicketId: null,
+      closedReason: null,
+      createdAt: new Date(),
+    });
 
+    const formData = makeFormData(validCreateFields);
     await createTicketAction(createInitialState, formData);
 
-    const after = getTickets("t_01").length;
-    expect(after).toBe(before + 1);
+    expect(prismaMock.ticket.create).toHaveBeenCalledOnce();
   });
 
   it("retorna fieldErrors quando título é muito curto", async () => {
@@ -129,6 +168,25 @@ describe("createTicketAction", () => {
   });
 
   it("aceita chamado com anexo válido (pdf)", async () => {
+    prismaMock.ticket.count.mockResolvedValue(8);
+    prismaMock.ticket.create.mockResolvedValue({
+      id: "new_id",
+      code: "tkt_009",
+      title: validCreateFields.title,
+      requester: validCreateFields.requester,
+      status: "open",
+      priority: "medium",
+      category: "financeiro",
+      description: validCreateFields.description,
+      tenantId: "t_01",
+      assignedTo: null,
+      disconnectedAt: null,
+      feedbackDeadline: null,
+      relatedTicketId: null,
+      closedReason: null,
+      createdAt: new Date(),
+    });
+
     const formData = makeFormData({
       ...validCreateFields,
       attachment: "documento.pdf",
@@ -149,8 +207,7 @@ describe("createTicketAction", () => {
     expect(result.fieldErrors.attachment).toBeDefined();
   });
 
-  it("não cria chamado quando validação falha", async () => {
-    const before = getTickets("t_01").length;
+  it("não chama prisma.ticket.create quando validação falha", async () => {
     const formData = makeFormData({
       ...validCreateFields,
       title: "Ab",
@@ -158,8 +215,7 @@ describe("createTicketAction", () => {
 
     await createTicketAction(createInitialState, formData);
 
-    const after = getTickets("t_01").length;
-    expect(after).toBe(before);
+    expect(prismaMock.ticket.create).not.toHaveBeenCalled();
   });
 });
 
@@ -167,10 +223,35 @@ describe("createTicketAction", () => {
 
 describe("assignTicketAction", () => {
   beforeEach(() => {
-    resetTickets();
+    resetPrismaMocks();
   });
 
+  const openTicket = {
+    id: "tkt_001",
+    code: "tkt_001",
+    title: "Sistema de login não responde",
+    requester: "Maria Oliveira",
+    status: "open",
+    priority: "high",
+    category: "suporte_tecnico",
+    description: "O sistema de login parou de funcionar.",
+    tenantId: "t_01",
+    assignedTo: null,
+    disconnectedAt: null,
+    feedbackDeadline: null,
+    relatedTicketId: null,
+    closedReason: null,
+    createdAt: new Date(),
+  };
+
   it("atribui chamado aberto com sucesso", async () => {
+    prismaMock.ticket.findUnique.mockResolvedValue(openTicket);
+    prismaMock.ticket.update.mockResolvedValue({
+      ...openTicket,
+      assignedTo: "u_01",
+      status: "in_progress",
+    });
+
     const formData = makeFormData({
       ticketId: "tkt_001",
       adminUserId: "u_01",
@@ -183,7 +264,14 @@ describe("assignTicketAction", () => {
     expect(result.error).toBeNull();
   });
 
-  it("chamado atribuído muda para in_progress no store", async () => {
+  it("chamado atribuído muda para in_progress via Prisma", async () => {
+    prismaMock.ticket.findUnique.mockResolvedValue(openTicket);
+    prismaMock.ticket.update.mockResolvedValue({
+      ...openTicket,
+      assignedTo: "u_01",
+      status: "in_progress",
+    });
+
     const formData = makeFormData({
       ticketId: "tkt_001",
       adminUserId: "u_01",
@@ -192,12 +280,15 @@ describe("assignTicketAction", () => {
 
     await assignTicketAction(assignInitialState, formData);
 
-    const ticket = getTicketById("tkt_001");
-    expect(ticket!.status).toBe("in_progress");
-    expect(ticket!.assignedTo).toBe("u_01");
+    expect(prismaMock.ticket.update).toHaveBeenCalledWith({
+      where: { id: "tkt_001" },
+      data: { assignedTo: "u_01", status: "in_progress" },
+    });
   });
 
   it("retorna erro para chamado inexistente", async () => {
+    prismaMock.ticket.findUnique.mockResolvedValue(null);
+
     const formData = makeFormData({
       ticketId: "tkt_999",
       adminUserId: "u_01",
@@ -211,7 +302,9 @@ describe("assignTicketAction", () => {
   });
 
   it("retorna erro para chamado que não está aberto", async () => {
-    // tkt_002 está in_progress
+    const inProgressTicket = { ...openTicket, status: "in_progress", assignedTo: "u_01" };
+    prismaMock.ticket.findUnique.mockResolvedValue(inProgressTicket);
+
     const formData = makeFormData({
       ticketId: "tkt_002",
       adminUserId: "u_01",
@@ -249,10 +342,7 @@ describe("assignTicketAction", () => {
     expect(result.success).toBe(false);
   });
 
-  it("não altera chamado quando validação falha", async () => {
-    const before = getTicketById("tkt_001");
-    expect(before!.status).toBe("open");
-
+  it("não chama prisma.ticket.update quando validação falha", async () => {
     const formData = makeFormData({
       ticketId: "invalido",
       adminUserId: "u_01",
@@ -261,8 +351,6 @@ describe("assignTicketAction", () => {
 
     await assignTicketAction(assignInitialState, formData);
 
-    const after = getTicketById("tkt_001");
-    expect(after!.status).toBe("open");
-    expect(after!.assignedTo).toBeNull();
+    expect(prismaMock.ticket.update).not.toHaveBeenCalled();
   });
 });

@@ -31,8 +31,8 @@ export interface ThreadPollResult {
 export async function pollThreadMessages(
   ticketId: string
 ): Promise<ThreadPollResult> {
-  const messages = getMessagesByTicket(ticketId);
-  const ticket = getTicketById(ticketId) ?? null;
+  const messages = await getMessagesByTicket(ticketId);
+  const ticket = (await getTicketById(ticketId)) ?? null;
   return { messages, ticket };
 }
 
@@ -61,7 +61,7 @@ export async function sendMessageAction(
     };
   }
 
-  createMessage({
+  await createMessage({
     ticketId: parsed.data.ticketId,
     tenantId: parsed.data.tenantId,
     senderRole: parsed.data.senderRole,
@@ -105,7 +105,7 @@ export async function createThreadAccessAction(
     };
   }
 
-  const access = createThreadAccess({
+  const access = await createThreadAccess({
     ticketId: parsed.data.ticketId,
     tenantId: parsed.data.tenantId,
     clientName: parsed.data.clientName,
@@ -147,7 +147,7 @@ export async function submitFeedbackAction(
     };
   }
 
-  const result = submitTicketFeedback(parsed.data.ticketId, parsed.data.resolution);
+  const result = await submitTicketFeedback(parsed.data.ticketId, parsed.data.resolution);
 
   if (!result) {
     return {

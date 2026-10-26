@@ -1,0 +1,142 @@
+// Prisma Schema para MongoDB
+// @empresa/db — Pacote de banco de dados do monorepo
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// === ENUMS ===
+
+enum UserRole {
+  admin
+  client
+}
+
+enum TicketStatus {
+  open
+  in_progress
+  pending_feedback
+  resolved
+  closed
+}
+
+enum TicketPriority {
+  high
+  medium
+  low
+}
+
+enum TicketCategory {
+  suporte_tecnico
+  financeiro
+  ti
+  rh
+  comercial
+}
+
+enum SenderRole {
+  admin
+  client
+}
+
+enum SubscriptionStatus {
+  active
+  inactive
+  trial
+}
+
+enum ClosedReason {
+  client_confirmed
+  client_unresolved
+  auto_closed
+}
+
+// === COMPOSITE TYPES (documentos embarcados) ===
+
+type TenantTheme {
+  primaryColor String
+  borderRadius Int
+  logoUrl      String
+}
+
+// === MODELS ===
+
+model Tenant {
+  id           String             @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  slug         String             @unique
+  subscription SubscriptionStatus @default(active)
+  theme        TenantTheme
+  createdAt    DateTime           @default(now())
+
+  users          User[]
+  tickets        Ticket[]
+  messages       Message[]
+  threadAccesses ThreadAccess[]
+}
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String
+  role      UserRole
+  tenantId  String   @db.ObjectId
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([email, tenantId])
+}
+
+model Ticket {
+  id               String          @id @default(auto()) @map("_id") @db.ObjectId
+  code             String          @unique
+  title            String
+  requester        String
+  status           TicketStatus    @default(open)
+  priority         TicketPriority
+  category         TicketCategory
+  description      String
+  tenantId         String          @db.ObjectId
+  assignedTo       String?         @db.ObjectId
+  disconnectedAt   DateTime?
+  feedbackDeadline DateTime?
+  relatedTicketId  String?         @db.ObjectId
+  closedReason     ClosedReason?
+  createdAt        DateTime        @default(now())
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  messages     Message[]
+  threadAccess ThreadAccess?
+}
+
+model Message {
+  id         String     @id @default(auto()) @map("_id") @db.ObjectId
+  ticketId   String     @db.ObjectId
+  tenantId   String     @db.ObjectId
+  senderRole SenderRole
+  senderName String
+  content    String
+  createdAt  DateTime   @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model ThreadAccess {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  ticketId    String   @unique @db.ObjectId
+  tenantId    String   @db.ObjectId
+  token       String   @unique
+  clientName  String
+  clientEmail String
+  createdAt   DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}

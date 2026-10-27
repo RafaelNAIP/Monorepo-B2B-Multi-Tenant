@@ -23,7 +23,7 @@ export async function generateMetadata({
   params,
 }: TicketDetailPageProps): Promise<Metadata> {
   const { ticketId } = await params;
-  const ticket = getTicketById(ticketId);
+  const ticket = await getTicketById(ticketId);
   return {
     title: ticket ? `Chamado: ${ticket.title}` : "Chamado não encontrado",
   };
@@ -39,22 +39,22 @@ export default async function AdminTicketDetailPage({
     redirect(`/${tenantSlug}/auth`);
   }
 
-  const tenant = getTenantBySlug(tenantSlug);
+  const tenant = await getTenantBySlug(tenantSlug);
   if (!tenant || tenant.id !== session.tenantId) {
     notFound();
   }
 
   // Check-on-access: auto-close se deadline expirou
-  checkAutoClose(ticketId);
+  await checkAutoClose(ticketId);
 
-  const ticket = getTicketById(ticketId);
+  const ticket = await getTicketById(ticketId);
   if (!ticket || ticket.tenantId !== session.tenantId) {
     notFound();
   }
 
-  const messages = getMessagesByTicket(ticketId);
-  const threadAccess = getThreadAccessByTicket(ticketId);
-  const adminUser = getUserById(session.sub);
+  const messages = await getMessagesByTicket(ticketId);
+  const threadAccess = await getThreadAccessByTicket(ticketId);
+  const adminUser = await getUserById(session.sub);
   const adminName = adminUser?.name ?? "Admin";
 
   return (

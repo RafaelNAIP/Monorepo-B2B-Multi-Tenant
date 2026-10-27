@@ -26,13 +26,13 @@ export default async function AdminChamadosPage({
     redirect(`/${tenantSlug}/auth`);
   }
 
-  const tickets = getTickets(session.tenantId);
+  const tickets = await getTickets(session.tenantId);
 
   // Resolve nomes dos admins atribuídos
   const assignedNames: Record<string, string> = {};
   for (const ticket of tickets) {
     if (ticket.assignedTo && !assignedNames[ticket.assignedTo]) {
-      const user = getUserById(ticket.assignedTo);
+      const user = await getUserById(ticket.assignedTo);
       if (user) {
         assignedNames[ticket.assignedTo] = user.name;
       }

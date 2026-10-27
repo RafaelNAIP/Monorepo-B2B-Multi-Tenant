@@ -8,8 +8,8 @@ export const metadata: Metadata = {
   title: "Tenants Cadastrados",
 };
 
-export default function AdminTenantsPage() {
-  const tenants = getAllTenants();
+export default async function AdminTenantsPage() {
+  const tenants = await getAllTenants();
 
   return (
     <div className="space-y-6">

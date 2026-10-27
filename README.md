@@ -405,10 +405,10 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 - [x] Client ticket creation form with Zod validation
 - [x] 4 complete domains (tenants, tickets, users, messages)
 - [x] 180 unit tests passing (strict TDD)
+- [x] **Database** — Migrate mock data to Prisma + MongoDB
 
 ### 🔜 Next Steps
 
-- [ ] **Database** — Migrate mock data to Prisma + PostgreSQL
 - [ ] **Real file uploads** — Integrate with S3/R2 (currently visual-only)
 - [ ] **WebSocket/SSE** — Replace polling with real-time connection
 - [ ] **Server-side pagination** — RSC with Suspense streaming

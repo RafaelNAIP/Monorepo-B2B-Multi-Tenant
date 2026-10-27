@@ -6,8 +6,7 @@ import { z } from "zod";
 export const createMessageSchema = z.object({
   ticketId: z
     .string()
-    .min(1, "ID do chamado é obrigatório")
-    .regex(/^tkt_\d{3,}$/, "ID do chamado inválido"),
+    .min(1, "ID do chamado é obrigatório"),
   tenantId: z
     .string()
     .min(1, "ID do tenant é obrigatório"),
@@ -35,8 +34,7 @@ export type CreateMessageInput = z.infer<typeof createMessageSchema>;
 export const createThreadAccessSchema = z.object({
   ticketId: z
     .string()
-    .min(1, "ID do chamado é obrigatório")
-    .regex(/^tkt_\d{3,}$/, "ID do chamado inválido"),
+    .min(1, "ID do chamado é obrigatório"),
   tenantId: z
     .string()
     .min(1, "ID do tenant é obrigatório"),
@@ -58,8 +56,7 @@ export type CreateThreadAccessInput = z.infer<typeof createThreadAccessSchema>;
 export const feedbackSchema = z.object({
   ticketId: z
     .string()
-    .min(1, "ID do chamado é obrigatório")
-    .regex(/^tkt_\d{3,}$/, "ID do chamado inválido"),
+    .min(1, "ID do chamado é obrigatório"),
   resolution: z.enum(["resolved", "unresolved"], {
     errorMap: () => ({ message: "Selecione se o chamado foi resolvido ou não" }),
   }),

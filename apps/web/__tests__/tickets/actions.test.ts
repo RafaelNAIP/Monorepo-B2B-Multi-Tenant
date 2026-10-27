@@ -317,7 +317,7 @@ describe("assignTicketAction", () => {
     expect(result.error).toContain("não encontrado");
   });
 
-  it("retorna erro para ticketId com formato inválido", async () => {
+  it("retorna erro para ticketId inexistente", async () => {
     const formData = makeFormData({
       ticketId: "invalido",
       adminUserId: "u_01",
@@ -327,7 +327,7 @@ describe("assignTicketAction", () => {
     const result = await assignTicketAction(assignInitialState, formData);
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain("inválidos");
+    expect(result.error).toContain("não encontrado");
   });
 
   it("retorna erro para adminUserId vazio", async () => {

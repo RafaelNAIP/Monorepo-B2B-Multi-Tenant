@@ -97,20 +97,6 @@ describe("Server Actions de mensagens", () => {
       expect(result.fieldErrors.content).toBeDefined();
     });
 
-    it("retorna fieldErrors com ticketId inválido", async () => {
-      const fd = makeFormData({
-        ticketId: "invalido",
-        tenantId: "t_01",
-        senderRole: "admin",
-        senderName: "Admin",
-        content: "Mensagem válida",
-      });
-
-      const result = await sendMessageAction(initialState, fd);
-      expect(result.success).toBe(false);
-      expect(result.fieldErrors.ticketId).toBeDefined();
-    });
-
     it("retorna fieldErrors com role inválido", async () => {
       const fd = makeFormData({
         ticketId: "tkt_001",
@@ -126,11 +112,11 @@ describe("Server Actions de mensagens", () => {
 
     it("não chama prisma.message.create quando validação falha", async () => {
       const fd = makeFormData({
-        ticketId: "invalido",
+        ticketId: "tkt_001",
         tenantId: "t_01",
         senderRole: "admin",
         senderName: "Admin",
-        content: "Mensagem válida",
+        content: "",
       });
 
       await sendMessageAction(initialState, fd);
@@ -209,17 +195,6 @@ describe("Server Actions de mensagens", () => {
       const result = await submitFeedbackAction(initialState, fd);
       expect(result.success).toBe(false);
       expect(result.fieldErrors.resolution).toBeDefined();
-    });
-
-    it("retorna fieldErrors com ticketId inválido", async () => {
-      const fd = makeFormData({
-        ticketId: "invalido",
-        resolution: "resolved",
-      });
-
-      const result = await submitFeedbackAction(initialState, fd);
-      expect(result.success).toBe(false);
-      expect(result.fieldErrors.ticketId).toBeDefined();
     });
 
     it("aceita feedback 'resolved' com dados válidos", async () => {

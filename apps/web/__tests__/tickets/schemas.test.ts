@@ -82,22 +82,6 @@ describe("assignTicketSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejeita ticketId com formato inválido", () => {
-    const result = assignTicketSchema.safeParse({
-      ...validInput,
-      ticketId: "invalido",
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejeita ticketId sem prefixo tkt_", () => {
-    const result = assignTicketSchema.safeParse({
-      ...validInput,
-      ticketId: "001",
-    });
-    expect(result.success).toBe(false);
-  });
-
   it("rejeita adminUserId vazio", () => {
     const result = assignTicketSchema.safeParse({
       ...validInput,

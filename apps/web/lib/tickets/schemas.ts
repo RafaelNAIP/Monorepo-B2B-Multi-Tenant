@@ -47,8 +47,7 @@ export type TicketFilter = z.infer<typeof ticketFilterSchema>;
 export const assignTicketSchema = z.object({
   ticketId: z
     .string()
-    .min(1, "ID do chamado é obrigatório")
-    .regex(/^tkt_\d{3,}$/, "ID do chamado inválido"),
+    .min(1, "ID do chamado é obrigatório"),
   adminUserId: z
     .string()
     .min(1, "ID do administrador é obrigatório"),

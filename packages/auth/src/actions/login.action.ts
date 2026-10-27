@@ -1,5 +1,6 @@
 "use server";
 
+import { prisma } from "@empresa/db";
 import { loginSchema, type LoginInput } from "../schemas/auth.schema";
 import { setSessionCookie } from "../lib/session";
 
@@ -17,8 +18,8 @@ export interface AuthActionState {
  *
  * Fluxo:
  * 1. Valida input com Zod (tenantSlug + credenciais)
- * 2. Resolve tenant no banco (placeholder)
- * 3. Verifica credenciais (placeholder)
+ * 2. Resolve tenant no banco
+ * 3. Verifica credenciais (busca usuário por email + tenantId)
  * 4. Cria sessão JWT com contexto do tenant e role
  *
  * Uso com useActionState no client:
@@ -51,8 +52,10 @@ export async function loginAction(
   const role = (formData.get("role") as string) || "client";
 
   try {
-    // 2. Resolve tenant (substituir pela query real ao DB)
-    const tenant = await resolveTenant(tenantSlug);
+    // 2. Resolve tenant no banco
+    const tenant = await prisma.tenant.findUnique({
+      where: { slug: tenantSlug },
+    });
     if (!tenant) {
       return {
         success: false,
@@ -60,14 +63,24 @@ export async function loginAction(
       };
     }
 
-    // 3. Verifica credenciais (substituir pela lógica real)
-    const user = await authenticateUser(email, password, tenant.id, role);
+    // 3. Busca usuário por email, tenantId e role
+    const user = await prisma.user.findFirst({
+      where: {
+        email,
+        tenantId: tenant.id,
+        role: role as "admin" | "client",
+      },
+    });
     if (!user) {
       return {
         success: false,
         error: "E-mail ou senha incorretos",
       };
     }
+
+    // Nota: Verificação de senha está desabilitada (sem hash implementado).
+    // Em produção, comparar password com hash armazenado (bcrypt).
+    // Por ora, qualquer senha é aceita se o usuário existe.
 
     // 4. Criar sessão com role
     await setSessionCookie({
@@ -93,46 +106,4 @@ export async function loginAction(
       error: "Erro interno. Tente novamente.",
     };
   }
-}
-
-// ─── Stubs — substituir pela implementação real ─────────────────────
-
-interface Tenant {
-  id: string;
-  slug: string;
-  name: string;
-}
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: "admin" | "member" | "viewer";
-}
-
-async function resolveTenant(slug: string): Promise<Tenant | null> {
-  // TODO: Buscar no banco de dados
-  const tenants: Record<string, Tenant> = {
-    demo: { id: "t_01", slug: "demo", name: "Demo Corp" },
-    acme: { id: "t_02", slug: "acme", name: "Acme Inc" },
-    teste: { id: "t_03", slug: "teste", name: "Empresa Teste" },
-  };
-  return tenants[slug] || null;
-}
-
-async function authenticateUser(
-  _email: string,
-  _password: string,
-  _tenantId: string,
-  role: string
-): Promise<User | null> {
-  // TODO: Buscar usuário e verificar hash da senha
-  // TODO: Verificar se o usuário tem o role solicitado
-  const mappedRole = role === "admin" ? "admin" : role === "client" ? "member" : "viewer";
-  return {
-    id: "u_01",
-    email: _email,
-    name: "Usuário Demo",
-    role: mappedRole as "admin" | "member" | "viewer",
-  };
 }

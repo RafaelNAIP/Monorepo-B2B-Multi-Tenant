@@ -22,7 +22,7 @@ export default async function ThemeEditorPage({ params }: ThemePageProps) {
     redirect(`/${tenantSlug}/auth`);
   }
 
-  const tenant = getTenantById(session.tenantId);
+  const tenant = await getTenantById(session.tenantId);
 
   if (!tenant) {
     redirect(`/${tenantSlug}/admin`);

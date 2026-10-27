@@ -33,7 +33,7 @@ export async function updateThemeAction(
 
   const tenantId = formData.get("tenantId") as string;
 
-  const updated = updateTenantTheme(tenantId, {
+  const updated = await updateTenantTheme(tenantId, {
     companyName: parsed.data.companyName,
     theme: {
       primaryColor: parsed.data.primaryColor,

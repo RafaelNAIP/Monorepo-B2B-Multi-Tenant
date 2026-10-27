@@ -26,7 +26,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     redirect(`/${session.tenantSlug}/dashboard`);
   }
 
-  const tickets = getTickets(session.tenantId);
+  const tickets = await getTickets(session.tenantId);
 
   return (
     <main className="mx-auto max-w-6xl p-8">

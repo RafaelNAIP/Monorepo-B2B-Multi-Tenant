@@ -36,7 +36,7 @@ export async function createTicketAction(
   const tenantId = formData.get("tenantId") as string;
   const requester = formData.get("requester") as string;
 
-  createTicket({
+  await createTicket({
     title: parsed.data.title,
     category: parsed.data.category,
     description: parsed.data.description,
@@ -77,7 +77,7 @@ export async function assignTicketAction(
   }
 
   const tenantSlug = formData.get("tenantSlug") as string;
-  const result = assignTicket(parsed.data.ticketId, parsed.data.adminUserId);
+  const result = await assignTicket(parsed.data.ticketId, parsed.data.adminUserId);
 
   if (!result) {
     return {
@@ -112,7 +112,7 @@ export async function disconnectTicketAction(
     };
   }
 
-  const result = disconnectTicket(ticketId);
+  const result = await disconnectTicket(ticketId);
 
   if (!result) {
     return {

@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
-import { resetTenants, getTenantById } from "../../lib/tenants/data";
+import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
 
-// Importação do action sem "use server" — vitest não suporta a diretiva
-// O teste importa diretamente a função
+vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
+
 import { updateThemeAction, type ThemeActionState } from "../../lib/tenants/actions";
 
 const initialState: ThemeActionState = {
@@ -21,7 +21,7 @@ function createFormData(data: Record<string, string>): FormData {
 }
 
 beforeEach(() => {
-  resetTenants();
+  resetPrismaMocks();
 });
 
 describe("updateThemeAction", () => {
@@ -34,6 +34,19 @@ describe("updateThemeAction", () => {
   };
 
   it("atualiza tema com dados válidos", async () => {
+    prismaMock.tenant.update.mockResolvedValue({
+      id: "t_01",
+      name: "Empresa Atualizada",
+      slug: "demo",
+      subscription: "active",
+      theme: {
+        primaryColor: "#10b981",
+        borderRadius: 12,
+        logoUrl: "https://example.com/newlogo.png",
+      },
+      createdAt: new Date(),
+    });
+
     const fd = createFormData(validData);
     const result = await updateThemeAction(initialState, fd);
 
@@ -42,14 +55,34 @@ describe("updateThemeAction", () => {
     expect(result.fieldErrors).toEqual({});
   });
 
-  it("persiste as alterações no store após sucesso", async () => {
+  it("persiste as alterações via Prisma após sucesso", async () => {
+    prismaMock.tenant.update.mockResolvedValue({
+      id: "t_01",
+      name: "Empresa Atualizada",
+      slug: "demo",
+      subscription: "active",
+      theme: {
+        primaryColor: "#10b981",
+        borderRadius: 12,
+        logoUrl: "https://example.com/newlogo.png",
+      },
+      createdAt: new Date(),
+    });
+
     const fd = createFormData(validData);
     await updateThemeAction(initialState, fd);
 
-    const tenant = getTenantById("t_01");
-    expect(tenant!.name).toBe("Empresa Atualizada");
-    expect(tenant!.theme.primaryColor).toBe("#10b981");
-    expect(tenant!.theme.borderRadius).toBe(12);
+    expect(prismaMock.tenant.update).toHaveBeenCalledWith({
+      where: { id: "t_01" },
+      data: {
+        name: "Empresa Atualizada",
+        theme: {
+          primaryColor: "#10b981",
+          borderRadius: 12,
+          logoUrl: "https://example.com/newlogo.png",
+        },
+      },
+    });
   });
 
   it("retorna erro para cor inválida", async () => {
@@ -98,6 +131,10 @@ describe("updateThemeAction", () => {
   });
 
   it("retorna erro para tenant inexistente", async () => {
+    prismaMock.tenant.update.mockRejectedValue(
+      new Error("Record to update not found.")
+    );
+
     const fd = createFormData({
       ...validData,
       tenantId: "t_99",

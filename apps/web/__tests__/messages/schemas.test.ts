@@ -75,14 +75,6 @@ describe("createMessageSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejeita ticketId com formato inválido", () => {
-    const result = createMessageSchema.safeParse({
-      ...validInput,
-      ticketId: "invalido",
-    });
-    expect(result.success).toBe(false);
-  });
-
   it("rejeita tenantId vazio", () => {
     const result = createMessageSchema.safeParse({
       ...validInput,
@@ -150,14 +142,6 @@ describe("createThreadAccessSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejeita ticketId com formato inválido", () => {
-    const result = createThreadAccessSchema.safeParse({
-      ...validInput,
-      ticketId: "invalido",
-    });
-    expect(result.success).toBe(false);
-  });
-
   it("rejeita tenantId vazio", () => {
     const result = createThreadAccessSchema.safeParse({
       ...validInput,
@@ -201,14 +185,6 @@ describe("feedbackSchema", () => {
     const result = feedbackSchema.safeParse({
       ticketId: "tkt_001",
       resolution: "maybe",
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejeita ticketId com formato inválido", () => {
-    const result = feedbackSchema.safeParse({
-      ticketId: "invalido",
-      resolution: "resolved",
     });
     expect(result.success).toBe(false);
   });

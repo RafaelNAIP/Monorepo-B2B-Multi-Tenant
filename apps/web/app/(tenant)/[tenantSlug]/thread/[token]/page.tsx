@@ -17,14 +17,14 @@ export async function generateMetadata({
   params,
 }: ThreadPageProps): Promise<Metadata> {
   const { tenantSlug, token } = await params;
-  const tenant = getTenantBySlug(tenantSlug);
-  const access = getThreadAccessByToken(token);
+  const tenant = await getTenantBySlug(tenantSlug);
+  const access = await getThreadAccessByToken(token);
 
   if (!tenant || !access) {
     return { title: "Thread não encontrada" };
   }
 
-  const ticket = getTicketById(access.ticketId);
+  const ticket = await getTicketById(access.ticketId);
   return {
     title: ticket ? `${ticket.title} — ${tenant.name}` : "Thread",
   };
@@ -33,25 +33,25 @@ export async function generateMetadata({
 export default async function ClientThreadPage({ params }: ThreadPageProps) {
   const { tenantSlug, token } = await params;
 
-  const tenant = getTenantBySlug(tenantSlug);
+  const tenant = await getTenantBySlug(tenantSlug);
   if (!tenant) {
     notFound();
   }
 
-  const access = getThreadAccessByToken(token);
+  const access = await getThreadAccessByToken(token);
   if (!access || access.tenantId !== tenant.id) {
     notFound();
   }
 
   // Check-on-access: auto-close se deadline expirou
-  checkAutoClose(access.ticketId);
+  await checkAutoClose(access.ticketId);
 
-  const ticket = getTicketById(access.ticketId);
+  const ticket = await getTicketById(access.ticketId);
   if (!ticket) {
     notFound();
   }
 
-  const messages = getMessagesByTicket(access.ticketId);
+  const messages = await getMessagesByTicket(access.ticketId);
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--color-background)]">

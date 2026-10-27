@@ -1,4 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
+
+vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
 
 import {
   getMessagesByTicket,
@@ -6,19 +10,62 @@ import {
   getThreadAccessByToken,
   getThreadAccessByTicket,
   createThreadAccess,
-  resetMessages,
 } from "../../lib/messages/data";
+
+// ─── Fixtures ────────────────────────────────────────────────────────
+
+const MOCK_MESSAGES = [
+  {
+    id: "msg_001",
+    ticketId: "tkt_001",
+    tenantId: "t_01",
+    senderRole: "admin",
+    senderName: "João Admin",
+    content: "Olá, como posso ajudar?",
+    createdAt: new Date("2024-11-01T10:00:00Z"),
+  },
+  {
+    id: "msg_002",
+    ticketId: "tkt_001",
+    tenantId: "t_01",
+    senderRole: "client",
+    senderName: "Maria Cliente",
+    content: "Preciso de suporte no sistema",
+    createdAt: new Date("2024-11-01T10:05:00Z"),
+  },
+];
+
+const MOCK_THREAD_ACCESS = {
+  id: "ta_001",
+  ticketId: "tkt_001",
+  tenantId: "t_01",
+  token: "abc123token456def789ghi012jkl345",
+  clientName: "Maria Oliveira",
+  clientEmail: "maria@exemplo.com",
+  createdAt: new Date("2024-11-01T10:00:00Z"),
+};
 
 describe("data layer de mensagens", () => {
   beforeEach(() => {
-    resetMessages();
+    resetPrismaMocks();
   });
 
   // ─── createMessage ─────────────────────────────────────────────
 
   describe("createMessage", () => {
-    it("cria uma mensagem e retorna com ID gerado", () => {
-      const msg = createMessage({
+    it("cria uma mensagem e retorna com ID gerado", async () => {
+      const created = {
+        id: "msg_new",
+        ticketId: "tkt_001",
+        tenantId: "t_01",
+        senderRole: "admin",
+        senderName: "João Admin",
+        content: "Olá, como posso ajudar?",
+        createdAt: new Date(),
+      };
+      prismaMock.message.create.mockResolvedValue(created);
+
+      const msg = await createMessage({
         ticketId: "tkt_001",
         tenantId: "t_01",
         senderRole: "admin",
@@ -27,7 +74,6 @@ describe("data layer de mensagens", () => {
       });
 
       expect(msg.id).toBeDefined();
-      expect(msg.id).toMatch(/^msg_/);
       expect(msg.ticketId).toBe("tkt_001");
       expect(msg.tenantId).toBe("t_01");
       expect(msg.senderRole).toBe("admin");
@@ -36,103 +82,76 @@ describe("data layer de mensagens", () => {
       expect(msg.createdAt).toBeDefined();
     });
 
-    it("gera IDs sequenciais", () => {
-      const msg1 = createMessage({
+    it("chama prisma.message.create com os dados corretos", async () => {
+      prismaMock.message.create.mockResolvedValue({
+        id: "msg_new",
+        ticketId: "tkt_001",
+        tenantId: "t_01",
+        senderRole: "admin",
+        senderName: "Admin",
+        content: "Primeira",
+        createdAt: new Date(),
+      });
+
+      await createMessage({
         ticketId: "tkt_001",
         tenantId: "t_01",
         senderRole: "admin",
         senderName: "Admin",
         content: "Primeira",
       });
-      const msg2 = createMessage({
-        ticketId: "tkt_001",
-        tenantId: "t_01",
-        senderRole: "client",
-        senderName: "Cliente",
-        content: "Segunda",
-      });
 
-      expect(msg1.id).not.toBe(msg2.id);
+      expect(prismaMock.message.create).toHaveBeenCalledOnce();
+      expect(prismaMock.message.create).toHaveBeenCalledWith({
+        data: {
+          ticketId: "tkt_001",
+          tenantId: "t_01",
+          senderRole: "admin",
+          senderName: "Admin",
+          content: "Primeira",
+        },
+      });
     });
   });
 
   // ─── getMessagesByTicket ───────────────────────────────────────
 
   describe("getMessagesByTicket", () => {
-    it("retorna mensagens do ticket informado", () => {
-      createMessage({
-        ticketId: "tkt_001",
-        tenantId: "t_01",
-        senderRole: "admin",
-        senderName: "Admin",
-        content: "Mensagem 1",
-      });
-      createMessage({
-        ticketId: "tkt_001",
-        tenantId: "t_01",
-        senderRole: "client",
-        senderName: "Cliente",
-        content: "Mensagem 2",
-      });
+    it("retorna mensagens do ticket informado", async () => {
+      prismaMock.message.findMany.mockResolvedValue(MOCK_MESSAGES);
 
-      const msgs = getMessagesByTicket("tkt_001");
+      const msgs = await getMessagesByTicket("tkt_001");
       expect(msgs).toHaveLength(2);
       expect(msgs.every((m) => m.ticketId === "tkt_001")).toBe(true);
     });
 
-    it("retorna array vazio para ticket sem mensagens", () => {
-      const msgs = getMessagesByTicket("tkt_999");
+    it("retorna array vazio para ticket sem mensagens", async () => {
+      prismaMock.message.findMany.mockResolvedValue([]);
+
+      const msgs = await getMessagesByTicket("tkt_999");
       expect(msgs).toEqual([]);
     });
 
-    it("não retorna mensagens de outros tickets", () => {
-      createMessage({
-        ticketId: "tkt_001",
-        tenantId: "t_01",
-        senderRole: "admin",
-        senderName: "Admin",
-        content: "Mensagem do ticket 1",
-      });
-      createMessage({
-        ticketId: "tkt_002",
-        tenantId: "t_01",
-        senderRole: "admin",
-        senderName: "Admin",
-        content: "Mensagem do ticket 2",
-      });
+    it("chama prisma.message.findMany com orderBy createdAt asc", async () => {
+      prismaMock.message.findMany.mockResolvedValue([]);
 
-      const msgs = getMessagesByTicket("tkt_001");
-      expect(msgs).toHaveLength(1);
-      expect(msgs[0]!.content).toBe("Mensagem do ticket 1");
-    });
+      await getMessagesByTicket("tkt_001");
 
-    it("retorna mensagens ordenadas por data de criação", () => {
-      createMessage({
-        ticketId: "tkt_001",
-        tenantId: "t_01",
-        senderRole: "admin",
-        senderName: "Admin",
-        content: "Primeira",
+      expect(prismaMock.message.findMany).toHaveBeenCalledWith({
+        where: { ticketId: "tkt_001" },
+        orderBy: { createdAt: "asc" },
       });
-      createMessage({
-        ticketId: "tkt_001",
-        tenantId: "t_01",
-        senderRole: "client",
-        senderName: "Cliente",
-        content: "Segunda",
-      });
-
-      const msgs = getMessagesByTicket("tkt_001");
-      expect(msgs[0]!.content).toBe("Primeira");
-      expect(msgs[1]!.content).toBe("Segunda");
     });
   });
 
   // ─── createThreadAccess ────────────────────────────────────────
 
   describe("createThreadAccess", () => {
-    it("cria um acesso de thread com token gerado", () => {
-      const access = createThreadAccess({
+    it("cria um acesso de thread e retorna com token", async () => {
+      prismaMock.threadAccess.deleteMany.mockResolvedValue({ count: 0 });
+      prismaMock.threadAccess.create.mockResolvedValue(MOCK_THREAD_ACCESS);
+
+      const access = await createThreadAccess({
         ticketId: "tkt_001",
         tenantId: "t_01",
         clientName: "Maria Oliveira",
@@ -149,113 +168,60 @@ describe("data layer de mensagens", () => {
       expect(access.createdAt).toBeDefined();
     });
 
-    it("gera tokens únicos para cada acesso", () => {
-      const a1 = createThreadAccess({
-        ticketId: "tkt_001",
-        tenantId: "t_01",
-        clientName: "Maria",
-        clientEmail: "maria@exemplo.com",
-      });
-      const a2 = createThreadAccess({
-        ticketId: "tkt_002",
-        tenantId: "t_01",
-        clientName: "João",
-        clientEmail: "joao@exemplo.com",
-      });
+    it("remove acesso anterior do mesmo ticket antes de criar novo", async () => {
+      prismaMock.threadAccess.deleteMany.mockResolvedValue({ count: 1 });
+      prismaMock.threadAccess.create.mockResolvedValue(MOCK_THREAD_ACCESS);
 
-      expect(a1.token).not.toBe(a2.token);
-    });
-
-    it("substitui acesso existente para o mesmo ticket", () => {
-      const first = createThreadAccess({
-        ticketId: "tkt_001",
-        tenantId: "t_01",
-        clientName: "Maria",
-        clientEmail: "maria@exemplo.com",
-      });
-      const second = createThreadAccess({
+      await createThreadAccess({
         ticketId: "tkt_001",
         tenantId: "t_01",
         clientName: "João",
         clientEmail: "joao@exemplo.com",
       });
 
-      // O segundo deve substituir o primeiro
-      const found = getThreadAccessByTicket("tkt_001");
-      expect(found).toBeDefined();
-      expect(found!.clientName).toBe("João");
-      expect(found!.token).toBe(second.token);
-      expect(found!.token).not.toBe(first.token);
+      expect(prismaMock.threadAccess.deleteMany).toHaveBeenCalledWith({
+        where: { ticketId: "tkt_001" },
+      });
+      expect(prismaMock.threadAccess.create).toHaveBeenCalledOnce();
     });
   });
 
   // ─── getThreadAccessByToken ────────────────────────────────────
 
   describe("getThreadAccessByToken", () => {
-    it("retorna o acesso pelo token", () => {
-      const created = createThreadAccess({
-        ticketId: "tkt_001",
-        tenantId: "t_01",
-        clientName: "Maria",
-        clientEmail: "maria@exemplo.com",
-      });
+    it("retorna o acesso pelo token", async () => {
+      prismaMock.threadAccess.findFirst.mockResolvedValue(MOCK_THREAD_ACCESS);
 
-      const found = getThreadAccessByToken(created.token);
+      const found = await getThreadAccessByToken("abc123token456def789ghi012jkl345");
       expect(found).toBeDefined();
       expect(found!.ticketId).toBe("tkt_001");
-      expect(found!.clientName).toBe("Maria");
+      expect(found!.clientName).toBe("Maria Oliveira");
     });
 
-    it("retorna undefined para token inexistente", () => {
-      const found = getThreadAccessByToken("token_invalido");
-      expect(found).toBeUndefined();
+    it("retorna null para token inexistente", async () => {
+      prismaMock.threadAccess.findFirst.mockResolvedValue(null);
+
+      const found = await getThreadAccessByToken("token_invalido");
+      expect(found).toBeNull();
     });
   });
 
   // ─── getThreadAccessByTicket ───────────────────────────────────
 
   describe("getThreadAccessByTicket", () => {
-    it("retorna o acesso pelo ticketId", () => {
-      createThreadAccess({
-        ticketId: "tkt_001",
-        tenantId: "t_01",
-        clientName: "Maria",
-        clientEmail: "maria@exemplo.com",
-      });
+    it("retorna o acesso pelo ticketId", async () => {
+      prismaMock.threadAccess.findFirst.mockResolvedValue(MOCK_THREAD_ACCESS);
 
-      const found = getThreadAccessByTicket("tkt_001");
+      const found = await getThreadAccessByTicket("tkt_001");
       expect(found).toBeDefined();
-      expect(found!.clientName).toBe("Maria");
+      expect(found!.clientName).toBe("Maria Oliveira");
     });
 
-    it("retorna undefined para ticket sem acesso criado", () => {
-      const found = getThreadAccessByTicket("tkt_999");
-      expect(found).toBeUndefined();
-    });
-  });
+    it("retorna null para ticket sem acesso criado", async () => {
+      prismaMock.threadAccess.findFirst.mockResolvedValue(null);
 
-  // ─── resetMessages ─────────────────────────────────────────────
-
-  describe("resetMessages", () => {
-    it("limpa todas as mensagens e acessos", () => {
-      createMessage({
-        ticketId: "tkt_001",
-        tenantId: "t_01",
-        senderRole: "admin",
-        senderName: "Admin",
-        content: "Teste",
-      });
-      createThreadAccess({
-        ticketId: "tkt_001",
-        tenantId: "t_01",
-        clientName: "Maria",
-        clientEmail: "maria@exemplo.com",
-      });
-
-      resetMessages();
-
-      expect(getMessagesByTicket("tkt_001")).toEqual([]);
-      expect(getThreadAccessByTicket("tkt_001")).toBeUndefined();
+      const found = await getThreadAccessByTicket("tkt_999");
+      expect(found).toBeNull();
     });
   });
 });

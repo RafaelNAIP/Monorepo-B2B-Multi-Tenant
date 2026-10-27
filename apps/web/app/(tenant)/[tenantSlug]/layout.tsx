@@ -26,7 +26,7 @@ export default async function TenantLayout({
   }
 
   // Busca o tenant para aplicar o tema
-  const tenant = getTenantBySlug(parsed.data);
+  const tenant = await getTenantBySlug(parsed.data);
 
   // CSS custom properties do tema do tenant
   const themeStyles = tenant

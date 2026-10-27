@@ -2,7 +2,7 @@
 
 A modular B2B multi-tenant corporate web platform featuring an admin panel, client portal, and a shared UI component package (decoupled Design System), running on a modern monorepo setup.
 
-> **Status:** Active MVP development — in-memory mock data, no database yet.
+> **Status:** Active MVP development — Prisma + MongoDB database layer with full seed data.
 
 ---
 
@@ -13,6 +13,7 @@ A modular B2B multi-tenant corporate web platform featuring an admin panel, clie
 - [Monorepo Structure](#monorepo-structure)
 - [Prerequisites](#prerequisites)
 - [Installation & Setup](#installation--setup)
+- [Database Setup](#database-setup)
 - [Running the Project](#running-the-project)
 - [Testing](#testing)
 - [Architecture](#architecture)
@@ -20,6 +21,7 @@ A modular B2B multi-tenant corporate web platform featuring an admin panel, clie
 - [Design System](#design-system)
 - [Project Conventions](#project-conventions)
 - [Current Status & Roadmap](#current-status--roadmap)
+- [Troubleshooting](#troubleshooting)
 - [Known Issues](#known-issues)
 - [License](#license)
 
@@ -36,6 +38,7 @@ This project tackles the challenge of building a B2B SaaS platform where multipl
 - UI streaming with Suspense for heavy metrics
 - Accessibility tokens (WCAG 2.1 AA) without legacy CSS-in-JS dependency
 - Multi-tenant isolation across routing, data, and authentication
+- Prisma ORM with MongoDB for persistent data layer
 
 ---
 
@@ -47,6 +50,8 @@ This project tackles the challenge of building a B2B SaaS platform where multipl
 | Runtime        | Node.js ≥ 20, pnpm 9.12+                      |
 | Framework      | Next.js 15 (App Router, Turbopack)             |
 | Language       | TypeScript 5.6+ (strict mode)                  |
+| Database       | MongoDB (via Prisma ORM)                       |
+| ORM            | Prisma 6.6.0 (`@prisma/client`)               |
 | Validation     | Zod 3.x (`^3.23.0`)                           |
 | UI Components  | Radix UI + Class Variance Authority + Tailwind |
 | Authentication | jose (JWT) + httpOnly cookies                  |
@@ -83,7 +88,13 @@ monorepo-empresa/
 │       └── middleware.ts             # Route protection
 ├── packages/
 │   ├── ui/                           # @empresa/ui — Design System
-│   └── auth/                         # @empresa/auth — JWT Auth
+│   ├── auth/                         # @empresa/auth — JWT Auth
+│   └── db/                           # @empresa/db — Prisma + MongoDB
+│       ├── prisma/
+│       │   └── schema.prisma         # Full database schema
+│       └── src/
+│           ├── index.ts              # PrismaClient singleton
+│           └── seed.ts               # Seed script with demo data
 ├── turbo.json
 ├── pnpm-workspace.yaml
 └── package.json
@@ -98,7 +109,7 @@ lib/<domain>/
 ├── constants.ts   # Typed enums and constants
 ├── types.ts       # Domain interfaces
 ├── schemas.ts     # Zod validation schemas
-├── data.ts        # Data layer (CRUD, queries)
+├── data.ts        # Data layer (Prisma queries — all async)
 └── actions.ts     # Server Actions (form handlers)
 ```
 
@@ -107,8 +118,9 @@ lib/<domain>/
 ## Prerequisites
 
 - **Node.js** ≥ 20
-- **pnpm** ≥ 9.12 (`npm install -g pnpm`)
+- **pnpm** ≥ 9.12 (`npm install -g pnpm`) — or npm
 - **Git**
+- **MongoDB** — Atlas (free tier) or local with replica set
 
 > **Windows:** Enable Developer Mode for symlinks, or configure `.npmrc` as described in [Known Issues](#known-issues).
 
@@ -120,6 +132,7 @@ lib/<domain>/
 # 1. Clone the repository
 git clone https://github.com/RafaelNAIP/Monorepo-B2B-Multi-Tenant.git
 cd Monorepo-B2B-Multi-Tenant
+git checkout dev
 
 # 2. Install dependencies
 pnpm install
@@ -138,6 +151,80 @@ The project also supports npm workspaces as an alternative to pnpm:
 npm install
 npm run dev
 ```
+
+---
+
+## Database Setup
+
+The project uses **MongoDB** with **Prisma ORM**. The database package lives in `packages/db`.
+
+### Option A: MongoDB Atlas (recommended)
+
+1. Create a free account at [mongodb.com/atlas](https://www.mongodb.com/atlas)
+2. Create a cluster (free tier M0 is sufficient)
+3. Create a database user in **Database Access**
+4. Whitelist your IP in **Network Access** (or `0.0.0.0/0` for development)
+5. Click **Connect** → **Drivers** and copy the connection string
+
+### Option B: MongoDB Local (Docker)
+
+MongoDB with Prisma requires a **replica set**, even locally:
+
+```bash
+# Start MongoDB with replica set
+docker run -d --name mongo-rs \
+  -p 27017:27017 \
+  mongo:7 mongod --replSet rs0
+
+# Initialize the replica set
+docker exec -it mongo-rs mongosh --eval "rs.initiate()"
+```
+
+Connection string: `mongodb://localhost:27017/empresa?replicaSet=rs0`
+
+### Configure Environment Variables
+
+Create `.env` files in **two locations**:
+
+**`apps/web/.env`** (Next.js reads from here):
+
+```env
+DATABASE_URL="mongodb+srv://<user>:<password>@<cluster>.mongodb.net/empresa?retryWrites=true&w=majority"
+JWT_SECRET="any-secure-string-here"
+```
+
+**`packages/db/.env`** (Prisma CLI reads from here):
+
+```env
+DATABASE_URL="mongodb+srv://<user>:<password>@<cluster>.mongodb.net/empresa?retryWrites=true&w=majority"
+```
+
+> **Important:** If an `apps/web/.env.local` file exists, it takes **priority** over `.env` in Next.js. Delete it or ensure its `DATABASE_URL` is correct.
+
+### Generate Prisma Client & Push Schema
+
+```bash
+cd packages/db
+npx prisma generate    # Generate the TypeScript client
+npx prisma db push     # Create collections in MongoDB
+```
+
+### Seed the Database
+
+```bash
+cd packages/db
+npm run db:seed
+```
+
+The seed creates:
+
+| Data         | Details                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------- |
+| **Tenants**  | Demo Corp (`demo`), Acme Inc (`acme`) — each with custom branding                                   |
+| **Users**    | `joao@demo.com` (admin), `maria@demo.com` (client), `admin@acme.com` (admin), `cliente@acme.com` (client) |
+| **Tickets**  | 3 sample tickets with different statuses and priorities                                              |
+| **Messages** | Thread messages between admin and client                                                             |
+| **Threads**  | ThreadAccess tokens for public client access                                                         |
 
 ---
 
@@ -173,13 +260,16 @@ The app will be available at `http://localhost:3000`.
 | `/demo/admin/chamados/[ticketId]`    | Admin ticket detail + thread chat     |
 | `/demo/thread/[token]`               | Public client thread (no auth needed) |
 
-### Test Credentials
+### Login Credentials
 
-| Role  | Email            | Password |
-| ----- | ---------------- | -------- |
-| Admin | admin@demo.com   | 12345678 |
+| Tenant | Role   | Email              | Password     |
+| ------ | ------ | ------------------ | ------------ |
+| Demo   | Admin  | joao@demo.com      | any password |
+| Demo   | Client | maria@demo.com     | any password |
+| Acme   | Admin  | admin@acme.com     | any password |
+| Acme   | Client | cliente@acme.com   | any password |
 
-Mock data lives in memory. See `apps/web/lib/users/data.ts` for all available test users per tenant.
+> **Note:** Password verification is not yet implemented (placeholder for bcrypt). Any password is accepted if the user exists in the database.
 
 ---
 
@@ -201,25 +291,31 @@ npx vitest run __tests__/tickets
 npx vitest run --reporter=verbose
 ```
 
+### Test Architecture
+
+Tests use a **shared Prisma mock** (`__tests__/helpers/mock-prisma.ts`) that stubs all database calls:
+
+```typescript
+import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
+vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
+
+beforeEach(() => {
+  resetPrismaMocks();
+});
+```
+
+This means tests run without a database connection — fully isolated and fast.
+
 ### Current Coverage
 
-| Suite                        | Tests |
-| ---------------------------- | ----- |
-| Tickets — schemas            | 12    |
-| Tickets — data layer         | 18    |
-| Tickets — actions            | 17    |
-| Tickets — thread lifecycle   | 16    |
-| Messages — schemas           | 23    |
-| Messages — data layer        | 14    |
-| Messages — actions           | 13    |
-| Tenants — schemas            | 19    |
-| Tenants — data layer         | 11    |
-| Tenants — actions            | 7     |
-| Users — data layer           | 14    |
-| Users — schemas              | 16    |
-| **Total**                    | **180** |
+**166 tests** across 12 test files, organized by domain and layer:
 
-Each layer is tested separately: schemas (Zod validation), data layer (CRUD & filters), and actions (schema + data integration).
+| Domain   | Schemas | Data Layer | Actions | Lifecycle | Total |
+| -------- | ------- | ---------- | ------- | --------- | ----- |
+| Tickets  | 10      | 18         | 16      | 16        | 60    |
+| Messages | 20      | 11         | 12      | —         | 43    |
+| Tenants  | 19      | 9          | 7       | —         | 35    |
+| Users    | 16      | 14         | —       | —         | 30    |
 
 ---
 
@@ -231,40 +327,42 @@ Tenant isolation happens at three levels:
 
 1. **Routing** — All routes live under `/(tenant)/[tenantSlug]/`, the slug identifies the tenant
 2. **Authentication** — JWT contains `tenantId` and `tenantSlug`, validated in middleware and Server Components
-3. **Data** — All queries filter by `tenantId`, ensuring a tenant never sees another tenant's data
+3. **Data** — All Prisma queries filter by `tenantId`, ensuring a tenant never sees another tenant's data
 
 ```
-Request → Middleware (validate JWT) → RSC (getSession + guard) → Data Layer (filter by tenantId)
+Request → Middleware (validate JWT) → RSC (getSession + guard) → Prisma Data Layer (filter by tenantId)
 ```
+
+### Database (Prisma + MongoDB)
+
+The `@empresa/db` package provides a singleton PrismaClient and re-exports all generated types:
+
+| Model          | Description                                              |
+| -------------- | -------------------------------------------------------- |
+| `Tenant`       | Organization with embedded `TenantTheme` (colors, logo)  |
+| `User`         | User with `admin` or `client` role (unique per tenant)   |
+| `Ticket`       | Support ticket with full status lifecycle                 |
+| `Message`      | Chat message in a ticket thread                          |
+| `ThreadAccess` | Public token-based access for client thread               |
+
+All IDs use MongoDB native ObjectIds. The `Ticket.code` field (e.g., `tkt_001`) is a human-readable identifier separate from the ObjectId `id`.
 
 ### Authentication
 
-- Login via Server Action → validate credentials → generate JWT with `jose` → store in httpOnly cookie
+- Login via Server Action → Prisma query for user → generate JWT with `jose` → store in httpOnly cookie
 - Middleware protects routes (`/dashboard`, `/chamados`, `/admin`)
 - Server Components use `getSession()` as a guard before rendering
-- Roles: `admin` (administrators) and `client`/`member` (end users)
+- Roles: `admin` (administrators) and `client` (end users)
 
 ### Server Actions
 
 All mutations follow the same pattern:
 
 ```
-FormData → Field extraction → Zod validation → Business logic → revalidatePath → Typed response
+FormData → Field extraction → Zod validation → Prisma query (await) → revalidatePath → Typed response
 ```
 
 Client-side uses `useActionState` for loading feedback and per-field errors.
-
-### In-Memory Data Persistence
-
-Mock data stores use `globalThis` to survive Next.js dev hot-reloads:
-
-```typescript
-const globalStore = globalThis as unknown as { __myStore?: Store };
-if (!globalStore.__myStore) {
-  globalStore.__myStore = { items: [...SEED_DATA], nextId: 1 };
-}
-const store = globalStore.__myStore;
-```
 
 ---
 
@@ -300,7 +398,7 @@ Login → Admin Panel
 **Key features:**
 - Token-based public access for clients (no login required)
 - Branded per tenant (colors, logo from tenant theme)
-- Real-time updates via 3-second polling (to be replaced with WebSocket in production)
+- Message updates via 3-second polling (future: WebSocket/SSE for true real-time)
 - Client decides resolution after admin disconnects
 - Automatic closure after 24h deadline
 
@@ -369,6 +467,7 @@ import { Button, Badge, Input } from "@empresa/ui";
 - **Server Components** — data fetching and auth guards live in RSC
 - **Client Components** — only for interactivity (forms, filters, state)
 - **CSS Custom Properties** — design tokens via `var(--color-*)`, no CSS-in-JS
+- **All data layer functions are async** — always use `await` when calling them
 
 ### TDD Methodology
 
@@ -395,22 +494,23 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 - [x] Ticket system — creation, listing, and filters
 - [x] Ticket system — admin assignment ("Assign" action)
 - [x] Admin ticket detail page with thread chat
-- [x] Thread communication — real-time chat between admin and client
+- [x] Thread communication — chat between admin and client
 - [x] Public token-based access for clients (no auth required)
 - [x] Admin disconnect + client feedback flow
 - [x] Auto-close after 24h deadline (check-on-access pattern)
-- [x] Polling-based real-time updates (3s interval)
-- [x] globalThis persistence for dev hot-reload survival
+- [x] Polling-based message updates (3s interval)
 - [x] Client dashboard with ticket list and filters
 - [x] Client ticket creation form with Zod validation
 - [x] 4 complete domains (tenants, tickets, users, messages)
-- [x] 180 unit tests passing (strict TDD)
-- [x] **Database** — Migrate mock data to Prisma + MongoDB
+- [x] **Prisma + MongoDB** — Full database layer (migrated from in-memory mocks)
+- [x] Seed script with demo data (tenants, users, tickets, messages, threads)
+- [x] 166 unit tests passing (strict TDD with Prisma mocks)
 
 ### 🔜 Next Steps
 
+- [ ] **Real-time (WebSocket/SSE)** — Replace 3s polling with true real-time communication in thread chat
+- [ ] **Password hashing (bcrypt)** — Login currently accepts any password; implement proper hash/verify
 - [ ] **Real file uploads** — Integrate with S3/R2 (currently visual-only)
-- [ ] **WebSocket/SSE** — Replace polling with real-time connection
 - [ ] **Server-side pagination** — RSC with Suspense streaming
 - [ ] **E2E tests** — Playwright for critical flows
 
@@ -422,6 +522,21 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 - [ ] Observability — structured logging + metrics
 - [ ] Granular role-based access control (RBAC)
 - [ ] Email notifications for thread updates
+
+---
+
+## Troubleshooting
+
+| Error | Cause | Solution |
+| ----- | ----- | -------- |
+| `Environment variable not found: DATABASE_URL` | `.env` missing or in the wrong directory | Create `.env` in both `apps/web/` and `packages/db/` |
+| `the URL must start with the protocol mongo` | Old `.env.local` with a PostgreSQL URL | Delete `apps/web/.env.local` |
+| `Cannot read properties of undefined (reading 'primaryColor')` | Missing `await` on an async data call | Ensure all data layer calls use `await` |
+| `Malformed ObjectID: invalid character` | Code using mock-era IDs (`t_01`, `u_01`) | Use real MongoDB ObjectIds |
+| `No command registered for 'generate'` | Prisma version mismatch (not 6.6.0) | `npm install prisma@6.6.0 --save-exact` in `packages/db` |
+| `Could not find Prisma Schema` | Running `prisma generate` from the wrong directory | Run from `packages/db/`, not the project root |
+| `Cannot find module '@empresa/db'` | Missing from `transpilePackages` | Check `apps/web/next.config.ts` includes `@empresa/db` |
+| `Cannot find module 'next'` (Windows) | pnpm symlink issue | Add `node-linker=hoisted` to `.npmrc` and reinstall |
 
 ---
 
@@ -442,9 +557,17 @@ If `Cannot find module 'next'` persists, delete all `node_modules` and `pnpm-loc
 
 The project uses **Zod 3.x** (`^3.23.0`). Do not install Zod 4 — it ignores custom `errorMap` in `z.enum()`, breaking all Portuguese error messages.
 
-### Turbopack Cache
+### Prisma Version
 
-When replacing files externally (outside the dev server), Turbopack may serve the old module version. Restart the dev server (`Ctrl+C` → `pnpm dev`) to force cache invalidation.
+Prisma is pinned to **6.6.0**. Newer versions (e.g., 6.19) may have breaking changes in the CLI. If `prisma generate` fails, check the version with `npx prisma --version`.
+
+### `.env.local` Priority
+
+Next.js loads `.env.local` with **higher priority** than `.env`. An old `.env.local` with a PostgreSQL connection string will silently override your MongoDB `DATABASE_URL`. Always check for stale `.env.local` files when debugging connection issues.
+
+### Password Verification
+
+Login currently accepts **any password** if the user exists in the database. This is a placeholder — implement bcrypt hash/verify before any production use.
 
 ### npm Workspaces Alternative
 

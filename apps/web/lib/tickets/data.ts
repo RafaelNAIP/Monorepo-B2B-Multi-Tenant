@@ -1,5 +1,6 @@
 import { prisma } from "@empresa/db";
 
+import { notifyThread } from "@/lib/sse/thread-event-emitter";
 import type { TicketCategory, TicketStatus } from "./constants";
 
 // ─── Category mapping (Portuguese display → Prisma enum) ─────────
@@ -173,10 +174,16 @@ export async function checkAutoClose(ticketId: string) {
 
   if (now <= deadline) return null;
 
-  return prisma.ticket.update({
+  const closed = await prisma.ticket.update({
     where: { id: ticketId },
     data: { status: "resolved", closedReason: "auto_closed" },
   });
+
+  // Mudança disparada pelo tempo, não por uma action: quem já está
+  // conectado à thread precisa ser avisado.
+  notifyThread(ticketId, "ticket_updated");
+
+  return closed;
 }
 
 /**

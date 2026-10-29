@@ -9,6 +9,7 @@ import {
 
 import { createTicketSchema, assignTicketSchema } from "./schemas";
 import { createTicket, assignTicket, disconnectTicket } from "./data";
+import { notifyThread } from "@/lib/sse/thread-event-emitter";
 
 export async function createTicketAction(
   _prevState: ActionState,
@@ -80,6 +81,8 @@ export async function assignTicketAction(
     };
   }
 
+  notifyThread(parsed.data.ticketId, "ticket_updated");
+
   if (tenantSlug) {
     revalidatePath(`/${tenantSlug}/admin/chamados`);
   }
@@ -114,6 +117,8 @@ export async function disconnectTicketAction(
       error: "Chamado não encontrado ou não está em andamento.",
     };
   }
+
+  notifyThread(ticketId, "thread_disconnected");
 
   if (tenantSlug) {
     revalidatePath(`/${tenantSlug}/admin/chamados`);

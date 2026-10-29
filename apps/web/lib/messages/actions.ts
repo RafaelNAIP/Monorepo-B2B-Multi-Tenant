@@ -9,6 +9,7 @@ import {
   validationErrorState,
   type ActionState,
 } from "@/lib/shared/action-state";
+import { notifyThread } from "@/lib/sse/thread-event-emitter";
 import type { Message } from "./types";
 import type { Ticket } from "@/lib/tickets/types";
 
@@ -18,7 +19,7 @@ export type MessageActionState = ActionState & {
   threadToken?: string;
 };
 
-// ─── Polling action (atualização em tempo real para mock) ──────
+// ─── Snapshot da thread (usado pelo canal SSE e pelo polling de segurança) ──
 
 export interface ThreadPollResult {
   messages: Message[];
@@ -26,8 +27,9 @@ export interface ThreadPollResult {
 }
 
 /**
- * Server Action para polling — retorna mensagens e status atual do ticket.
- * Usada pelos componentes client para atualizar a thread sem reload.
+ * Retorna as mensagens e o status atual do ticket.
+ * O SSE só avisa que algo mudou; este é o fetch que traz o estado novo
+ * (também chamado pelo polling de segurança quando o SSE está fora do ar).
  */
 export async function pollThreadMessages(
   ticketId: string
@@ -64,6 +66,8 @@ export async function sendMessageAction(
     senderName: parsed.data.senderName,
     content: parsed.data.content,
   });
+
+  notifyThread(parsed.data.ticketId, "new_message");
 
   const tenantSlug = formData.get("tenantSlug") as string;
   if (tenantSlug) {
@@ -142,6 +146,8 @@ export async function submitFeedbackAction(
       fieldErrors: {},
     };
   }
+
+  notifyThread(parsed.data.ticketId, "ticket_updated");
 
   const tenantSlug = formData.get("tenantSlug") as string;
   if (tenantSlug) {

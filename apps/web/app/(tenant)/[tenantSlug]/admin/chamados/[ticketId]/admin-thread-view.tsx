@@ -10,7 +10,7 @@ import {
   type AssignTicketActionState,
 } from "@/lib/tickets/actions";
 
-import { useThreadPolling } from "@/hooks/use-thread-polling";
+import { useThreadSSE } from "@/hooks/use-thread-sse";
 import { AdminThreadActions } from "@/components/thread/admin-thread-actions";
 import { MessageList } from "@/components/thread/message-list";
 import { MessageInput } from "@/components/thread/message-input";
@@ -42,7 +42,7 @@ export function AdminThreadView({
   adminName,
   existingToken,
 }: AdminThreadViewProps) {
-  const { messages: liveMessages, ticket: liveTicket } = useThreadPolling(
+  const { messages: liveMessages, ticket: liveTicket } = useThreadSSE(
     initialTicket,
     initialMessages
   );

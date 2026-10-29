@@ -4,7 +4,7 @@ import type { Ticket } from "@/lib/tickets/types";
 import type { Message } from "@/lib/messages/types";
 import type { Tenant } from "@/lib/tenants/types";
 
-import { useThreadPolling } from "@/hooks/use-thread-polling";
+import { useThreadSSE } from "@/hooks/use-thread-sse";
 import { MessageList } from "@/components/thread/message-list";
 import { MessageInput } from "@/components/thread/message-input";
 import { FeedbackCard } from "@/components/thread/feedback-card";
@@ -28,7 +28,7 @@ export function ClientThreadView({
   tenantSlug,
   clientName,
 }: ClientThreadViewProps) {
-  const { messages: liveMessages, ticket: liveTicket } = useThreadPolling(
+  const { messages: liveMessages, ticket: liveTicket } = useThreadSSE(
     initialTicket,
     initialMessages
   );

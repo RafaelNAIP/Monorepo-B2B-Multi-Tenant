@@ -3,6 +3,7 @@
 import { useActionState, useRef, useEffect } from "react";
 
 import { sendMessageAction, type MessageActionState } from "@/lib/messages/actions";
+import { INITIAL_ACTION_STATE } from "@/lib/shared/action-state";
 
 interface MessageInputProps {
   ticketId: string;
@@ -14,11 +15,7 @@ interface MessageInputProps {
   disabled?: boolean;
 }
 
-const initialState: MessageActionState = {
-  success: false,
-  error: null,
-  fieldErrors: {},
-};
+const initialState: MessageActionState = INITIAL_ACTION_STATE;
 
 /**
  * Campo de envio de mensagem — usa Server Action via useActionState.

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 
 import { submitFeedbackAction, type MessageActionState } from "@/lib/messages/actions";
+import { INITIAL_ACTION_STATE } from "@/lib/shared/action-state";
 import type { Ticket } from "@/lib/tickets/types";
 
 interface FeedbackCardProps {
@@ -11,11 +12,7 @@ interface FeedbackCardProps {
   primaryColor?: string;
 }
 
-const initialState: MessageActionState = {
-  success: false,
-  error: null,
-  fieldErrors: {},
-};
+const initialState: MessageActionState = INITIAL_ACTION_STATE;
 
 /**
  * Card de feedback — exibido para o cliente quando o admin desconecta.

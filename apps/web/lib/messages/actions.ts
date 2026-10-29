@@ -5,17 +5,15 @@ import { revalidatePath } from "next/cache";
 import { createMessageSchema, createThreadAccessSchema, feedbackSchema } from "./schemas";
 import { createMessage, createThreadAccess, getMessagesByTicket } from "./data";
 import { submitTicketFeedback, getTicketById } from "@/lib/tickets/data";
+import type { ActionState } from "@/lib/shared/action-state";
 import type { Message } from "./types";
 import type { Ticket } from "@/lib/tickets/types";
 
 // ─── Types ──────────────────────────────────────────────────────
 
-export interface MessageActionState {
-  success: boolean;
-  error: string | null;
-  fieldErrors: Record<string, string[]>;
+export type MessageActionState = ActionState & {
   threadToken?: string;
-}
+};
 
 // ─── Polling action (atualização em tempo real para mock) ──────
 

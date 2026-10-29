@@ -8,7 +8,7 @@ export interface SessionPayload {
   name: string;
   tenantId: string;
   tenantSlug: string;
-  role: "admin" | "member" | "viewer";
+  role: "admin" | "client";
 }
 
 const COOKIE_NAME = "empresa-session";

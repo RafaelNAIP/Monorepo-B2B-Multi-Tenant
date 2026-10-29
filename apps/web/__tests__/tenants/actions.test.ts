@@ -5,13 +5,10 @@ import { makeFormData } from "../helpers/form-data";
 
 vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
 
-import { updateThemeAction, type ThemeActionState } from "../../lib/tenants/actions";
+import { updateThemeAction } from "../../lib/tenants/actions";
+import { INITIAL_ACTION_STATE } from "../../lib/shared/action-state";
 
-const initialState: ThemeActionState = {
-  success: false,
-  error: null,
-  fieldErrors: {},
-};
+const initialState = INITIAL_ACTION_STATE;
 
 beforeEach(() => {
   resetPrismaMocks();

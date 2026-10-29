@@ -6,6 +6,7 @@ import {
   createThreadAccessAction,
   type MessageActionState,
 } from "@/lib/messages/actions";
+import { INITIAL_ACTION_STATE } from "@/lib/shared/action-state";
 import type { Ticket } from "@/lib/tickets/types";
 
 interface AdminThreadActionsProps {
@@ -17,11 +18,7 @@ interface AdminThreadActionsProps {
   isDisconnecting: boolean;
 }
 
-const initialState: MessageActionState = {
-  success: false,
-  error: null,
-  fieldErrors: {},
-};
+const initialState: MessageActionState = INITIAL_ACTION_STATE;
 
 /**
  * Ações do admin na thread: gerar link público para o cliente e encerrar conversa.

@@ -7,6 +7,7 @@ import {
   type MessageActionState,
 } from "@/lib/messages/actions";
 import { INITIAL_ACTION_STATE } from "@/lib/shared/action-state";
+import { DEFAULT_PRIMARY_COLOR } from "@/lib/tenants/constants";
 import type { Ticket } from "@/lib/tickets/types";
 
 interface AdminThreadActionsProps {
@@ -27,7 +28,7 @@ export function AdminThreadActions({
   ticket,
   tenantSlug,
   existingToken,
-  primaryColor = "#2563eb",
+  primaryColor = DEFAULT_PRIMARY_COLOR,
   onDisconnect,
   isDisconnecting,
 }: AdminThreadActionsProps) {

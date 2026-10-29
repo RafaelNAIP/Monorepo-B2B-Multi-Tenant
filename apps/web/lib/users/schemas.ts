@@ -4,8 +4,6 @@ export const userRoleSchema = z.enum(["client", "admin"], {
   errorMap: () => ({ message: "Selecione um tipo de usuário válido" }),
 });
 
-export type UserRoleInput = z.infer<typeof userRoleSchema>;
-
 export const loginWithRoleSchema = z.object({
   email: z
     .string()
@@ -26,5 +24,3 @@ export const loginWithRoleSchema = z.object({
     ),
   role: userRoleSchema,
 });
-
-export type LoginWithRoleInput = z.infer<typeof loginWithRoleSchema>;

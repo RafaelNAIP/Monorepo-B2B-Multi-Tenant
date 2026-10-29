@@ -5,16 +5,8 @@ import { useActionState, useState } from "react";
 import { Button, Input, Label } from "@empresa/ui";
 
 import type { TenantTheme } from "@/lib/tenants/types";
-import {
-  updateThemeAction,
-  type ThemeActionState,
-} from "@/lib/tenants/actions";
-
-const initialState: ThemeActionState = {
-  success: false,
-  error: null,
-  fieldErrors: {},
-};
+import { updateThemeAction } from "@/lib/tenants/actions";
+import { INITIAL_ACTION_STATE } from "@/lib/shared/action-state";
 
 interface ThemeEditorFormProps {
   tenantId: string;
@@ -29,7 +21,7 @@ export function ThemeEditorForm({
 }: ThemeEditorFormProps) {
   const [state, formAction, isPending] = useActionState(
     updateThemeAction,
-    initialState
+    INITIAL_ACTION_STATE
   );
 
   // Estado local para preview em tempo real

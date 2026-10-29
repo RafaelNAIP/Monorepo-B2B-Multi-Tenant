@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 
 import { Button, Input, Label } from "@empresa/ui";
 
-import { createTicketAction, type TicketActionState } from "@/lib/tickets/actions";
+import { createTicketAction } from "@/lib/tickets/actions";
+import { INITIAL_ACTION_STATE } from "@/lib/shared/action-state";
 import { TICKET_CATEGORIES } from "@/lib/tickets/constants";
 
 interface CreateTicketFormProps {
@@ -13,12 +14,6 @@ interface CreateTicketFormProps {
   tenantId: string;
   requester: string;
 }
-
-const initialState: TicketActionState = {
-  success: false,
-  error: null,
-  fieldErrors: {},
-};
 
 export function CreateTicketForm({
   tenantSlug,
@@ -28,7 +23,7 @@ export function CreateTicketForm({
   const router = useRouter();
   const [state, formAction, isPending] = useActionState(
     createTicketAction,
-    initialState
+    INITIAL_ACTION_STATE
   );
   const [category, setCategory] = useState("");
 

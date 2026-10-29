@@ -14,6 +14,7 @@ import {
 } from "@empresa/ui";
 
 import type { Tenant } from "@/lib/tenants/types";
+import { FilterSelect } from "@/components/filter-select";
 import {
   SUBSCRIPTION_STATUS,
   type SubscriptionStatus,
@@ -62,26 +63,14 @@ export function TenantTable({ tenants }: TenantTableProps) {
             aria-label="Buscar tenants"
           />
         </div>
-        <div className="w-full sm:w-48">
-          <select
-            value={subscriptionFilter}
-            onChange={(e) => setSubscriptionFilter(e.target.value)}
-            aria-label="Filtrar por assinatura"
-            className="flex h-10 w-full items-center rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)] focus:ring-offset-2"
-          >
-            <option value={ALL_SUBSCRIPTIONS}>Todas as assinaturas</option>
-            {(
-              Object.entries(SUBSCRIPTION_STATUS) as [
-                SubscriptionStatus,
-                string,
-              ][]
-            ).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FilterSelect
+          value={subscriptionFilter}
+          onChange={setSubscriptionFilter}
+          ariaLabel="Filtrar por assinatura"
+          allValue={ALL_SUBSCRIPTIONS}
+          allLabel="Todas as assinaturas"
+          options={Object.entries(SUBSCRIPTION_STATUS)}
+        />
       </div>
 
       {/* ── Tabela ── */}

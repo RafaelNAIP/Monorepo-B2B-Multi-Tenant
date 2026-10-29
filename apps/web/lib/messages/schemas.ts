@@ -26,8 +26,6 @@ export const createMessageSchema = z.object({
     }),
 });
 
-export type CreateMessageInput = z.infer<typeof createMessageSchema>;
-
 // ─── createThreadAccessSchema ────────────────────────────────────
 // Valida criação de um token de acesso público para o cliente
 
@@ -48,8 +46,6 @@ export const createThreadAccessSchema = z.object({
     .email("E-mail inválido"),
 });
 
-export type CreateThreadAccessInput = z.infer<typeof createThreadAccessSchema>;
-
 // ─── feedbackSchema ──────────────────────────────────────────────
 // Valida o feedback do cliente sobre a resolução do chamado
 
@@ -61,5 +57,3 @@ export const feedbackSchema = z.object({
     errorMap: () => ({ message: "Selecione se o chamado foi resolvido ou não" }),
   }),
 });
-
-export type FeedbackInput = z.infer<typeof feedbackSchema>;

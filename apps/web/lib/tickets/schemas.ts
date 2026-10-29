@@ -35,14 +35,10 @@ export const createTicketSchema = z.object({
     ),
 });
 
-export type CreateTicketInput = z.infer<typeof createTicketSchema>;
-
 export const ticketFilterSchema = z.object({
   status: z.enum(["open", "in_progress", "resolved"]).optional(),
   search: z.string().optional(),
 });
-
-export type TicketFilter = z.infer<typeof ticketFilterSchema>;
 
 export const assignTicketSchema = z.object({
   ticketId: z
@@ -52,5 +48,3 @@ export const assignTicketSchema = z.object({
     .string()
     .min(1, "ID do administrador é obrigatório"),
 });
-
-export type AssignTicketInput = z.infer<typeof assignTicketSchema>;

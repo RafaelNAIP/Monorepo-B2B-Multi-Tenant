@@ -4,6 +4,11 @@ export const loginSchema = z.object({
   email: z.string().email("E-mail inválido"),
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
   tenantSlug: z.string().min(1, "Slug do tenant é obrigatório"),
+  role: z
+    .enum(["admin", "client"], {
+      errorMap: () => ({ message: "Tipo de acesso inválido" }),
+    })
+    .default("client"),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

@@ -1,24 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
+import { makeFormData } from "../helpers/form-data";
 
 vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
 
-import { updateThemeAction, type ThemeActionState } from "../../lib/tenants/actions";
+import { updateThemeAction } from "../../lib/tenants/actions";
+import { INITIAL_ACTION_STATE } from "../../lib/shared/action-state";
 
-const initialState: ThemeActionState = {
-  success: false,
-  error: null,
-  fieldErrors: {},
-};
-
-function createFormData(data: Record<string, string>): FormData {
-  const fd = new FormData();
-  for (const [key, value] of Object.entries(data)) {
-    fd.append(key, value);
-  }
-  return fd;
-}
+const initialState = INITIAL_ACTION_STATE;
 
 beforeEach(() => {
   resetPrismaMocks();
@@ -47,7 +37,7 @@ describe("updateThemeAction", () => {
       createdAt: new Date(),
     });
 
-    const fd = createFormData(validData);
+    const fd = makeFormData(validData);
     const result = await updateThemeAction(initialState, fd);
 
     expect(result.success).toBe(true);
@@ -69,7 +59,7 @@ describe("updateThemeAction", () => {
       createdAt: new Date(),
     });
 
-    const fd = createFormData(validData);
+    const fd = makeFormData(validData);
     await updateThemeAction(initialState, fd);
 
     expect(prismaMock.tenant.update).toHaveBeenCalledWith({
@@ -86,7 +76,7 @@ describe("updateThemeAction", () => {
   });
 
   it("retorna erro para cor inválida", async () => {
-    const fd = createFormData({
+    const fd = makeFormData({
       ...validData,
       primaryColor: "vermelho",
     });
@@ -98,7 +88,7 @@ describe("updateThemeAction", () => {
   });
 
   it("retorna erro para nome da empresa muito curto", async () => {
-    const fd = createFormData({
+    const fd = makeFormData({
       ...validData,
       companyName: "A",
     });
@@ -109,7 +99,7 @@ describe("updateThemeAction", () => {
   });
 
   it("retorna erro para borderRadius fora do range", async () => {
-    const fd = createFormData({
+    const fd = makeFormData({
       ...validData,
       borderRadius: "30",
     });
@@ -120,7 +110,7 @@ describe("updateThemeAction", () => {
   });
 
   it("retorna erro para URL de logo inválida", async () => {
-    const fd = createFormData({
+    const fd = makeFormData({
       ...validData,
       logoUrl: "not-a-url",
     });
@@ -135,7 +125,7 @@ describe("updateThemeAction", () => {
       new Error("Record to update not found.")
     );
 
-    const fd = createFormData({
+    const fd = makeFormData({
       ...validData,
       tenantId: "t_99",
     });

@@ -16,6 +16,7 @@ import {
 } from "@empresa/ui";
 
 import type { Ticket } from "@/lib/tickets/types";
+import { FilterSelect } from "@/components/filter-select";
 import { TICKET_STATUS, TICKET_PRIORITY } from "@/lib/tickets/constants";
 import type { TicketStatus, TicketPriority } from "@/lib/tickets/constants";
 import {
@@ -99,23 +100,14 @@ export function AdminTicketTable({
             aria-label="Buscar chamados"
           />
         </div>
-        <div className="w-full sm:w-48">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            aria-label="Filtrar por status"
-            className="flex h-10 w-full items-center rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)] focus:ring-offset-2"
-          >
-            <option value={ALL_STATUS}>Todos os status</option>
-            {(
-              Object.entries(TICKET_STATUS) as [TicketStatus, string][]
-            ).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FilterSelect
+          value={statusFilter}
+          onChange={setStatusFilter}
+          ariaLabel="Filtrar por status"
+          allValue={ALL_STATUS}
+          allLabel="Todos os status"
+          options={Object.entries(TICKET_STATUS)}
+        />
       </div>
 
       {/* ── Tabela ── */}

@@ -98,6 +98,9 @@ describe("data layer de tickets", () => {
       const tickets = await getTickets("t_01");
       expect(tickets.length).toBeGreaterThan(0);
       expect(tickets.every((t) => t.tenantId === "t_01")).toBe(true);
+      expect(prismaMock.ticket.findMany).toHaveBeenCalledWith({
+        where: { tenantId: "t_01" },
+      });
     });
 
     it("retorna array vazio para tenant sem chamados", async () => {
@@ -114,6 +117,9 @@ describe("data layer de tickets", () => {
       const tickets = await getTickets("t_01", { status: "open" });
       expect(tickets.length).toBeGreaterThan(0);
       expect(tickets.every((t) => t.status === "open")).toBe(true);
+      expect(prismaMock.ticket.findMany).toHaveBeenCalledWith({
+        where: { tenantId: "t_01", status: "open" },
+      });
     });
 
     it("filtra por busca no título (case-insensitive)", async () => {
@@ -122,8 +128,17 @@ describe("data layer de tickets", () => {
       );
       prismaMock.ticket.findMany.mockResolvedValue(filtered);
 
-      const tickets = await getTickets("t_01", { search: "siste" });
+      const tickets = await getTickets("t_01", { search: "SISTE" });
       expect(tickets.length).toBeGreaterThan(0);
+      expect(prismaMock.ticket.findMany).toHaveBeenCalledWith({
+        where: {
+          tenantId: "t_01",
+          OR: [
+            { title: { contains: "siste", mode: "insensitive" } },
+            { requester: { contains: "siste", mode: "insensitive" } },
+          ],
+        },
+      });
       expect(
         tickets.every(
           (t) =>
@@ -141,6 +156,15 @@ describe("data layer de tickets", () => {
 
       const tickets = await getTickets("t_01", { search: "maria" });
       expect(tickets.length).toBeGreaterThan(0);
+      expect(prismaMock.ticket.findMany).toHaveBeenCalledWith({
+        where: {
+          tenantId: "t_01",
+          OR: [
+            { title: { contains: "maria", mode: "insensitive" } },
+            { requester: { contains: "maria", mode: "insensitive" } },
+          ],
+        },
+      });
     });
 
     it("combina filtro de status e busca", async () => {
@@ -149,6 +173,10 @@ describe("data layer de tickets", () => {
 
       const tickets = await getTickets("t_01", { status: "open", search: "" });
       expect(tickets.every((t) => t.status === "open")).toBe(true);
+      // busca vazia não deve gerar cláusula OR
+      expect(prismaMock.ticket.findMany).toHaveBeenCalledWith({
+        where: { tenantId: "t_01", status: "open" },
+      });
     });
 
     it("retorna vazio quando nenhum chamado combina com os filtros", async () => {

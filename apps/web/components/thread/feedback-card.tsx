@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 
 import { submitFeedbackAction, type MessageActionState } from "@/lib/messages/actions";
+import { INITIAL_ACTION_STATE } from "@/lib/shared/action-state";
+import { DEFAULT_PRIMARY_COLOR } from "@/lib/tenants/constants";
 import type { Ticket } from "@/lib/tickets/types";
 
 interface FeedbackCardProps {
@@ -11,11 +13,7 @@ interface FeedbackCardProps {
   primaryColor?: string;
 }
 
-const initialState: MessageActionState = {
-  success: false,
-  error: null,
-  fieldErrors: {},
-};
+const initialState: MessageActionState = INITIAL_ACTION_STATE;
 
 /**
  * Card de feedback — exibido para o cliente quando o admin desconecta.
@@ -24,7 +22,7 @@ const initialState: MessageActionState = {
 export function FeedbackCard({
   ticket,
   tenantSlug,
-  primaryColor = "#2563eb",
+  primaryColor = DEFAULT_PRIMARY_COLOR,
 }: FeedbackCardProps) {
   const [state, formAction, isPending] = useActionState(
     submitFeedbackAction,

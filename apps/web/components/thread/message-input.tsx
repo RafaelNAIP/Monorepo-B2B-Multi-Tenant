@@ -3,6 +3,8 @@
 import { useActionState, useRef, useEffect } from "react";
 
 import { sendMessageAction, type MessageActionState } from "@/lib/messages/actions";
+import { INITIAL_ACTION_STATE } from "@/lib/shared/action-state";
+import { DEFAULT_PRIMARY_COLOR } from "@/lib/tenants/constants";
 
 interface MessageInputProps {
   ticketId: string;
@@ -14,11 +16,7 @@ interface MessageInputProps {
   disabled?: boolean;
 }
 
-const initialState: MessageActionState = {
-  success: false,
-  error: null,
-  fieldErrors: {},
-};
+const initialState: MessageActionState = INITIAL_ACTION_STATE;
 
 /**
  * Campo de envio de mensagem — usa Server Action via useActionState.
@@ -30,7 +28,7 @@ export function MessageInput({
   senderRole,
   senderName,
   tenantSlug,
-  primaryColor = "#2563eb",
+  primaryColor = DEFAULT_PRIMARY_COLOR,
   disabled = false,
 }: MessageInputProps) {
   const formRef = useRef<HTMLFormElement>(null);

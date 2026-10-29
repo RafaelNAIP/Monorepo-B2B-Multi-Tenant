@@ -2,19 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 
+import {
+  validationErrorState,
+  type ActionState,
+} from "@/lib/shared/action-state";
+
 import { createTicketSchema, assignTicketSchema } from "./schemas";
 import { createTicket, assignTicket, disconnectTicket } from "./data";
 
-export interface TicketActionState {
-  success: boolean;
-  error: string | null;
-  fieldErrors: Record<string, string[]>;
-}
-
 export async function createTicketAction(
-  _prevState: TicketActionState,
+  _prevState: ActionState,
   formData: FormData
-): Promise<TicketActionState> {
+): Promise<ActionState> {
   const raw = {
     title: formData.get("title") as string,
     category: formData.get("category") as string,
@@ -25,12 +24,7 @@ export async function createTicketAction(
   const parsed = createTicketSchema.safeParse(raw);
 
   if (!parsed.success) {
-    const flat = parsed.error.flatten();
-    return {
-      success: false,
-      error: "Verifique os campos e tente novamente.",
-      fieldErrors: flat.fieldErrors as Record<string, string[]>,
-    };
+    return validationErrorState(parsed.error);
   }
 
   const tenantId = formData.get("tenantId") as string;

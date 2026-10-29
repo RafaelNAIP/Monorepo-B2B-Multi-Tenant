@@ -1,18 +1,17 @@
 "use server";
 
+import {
+  validationErrorState,
+  type ActionState,
+} from "@/lib/shared/action-state";
+
 import { tenantThemeSchema } from "./schemas";
 import { updateTenantTheme } from "./data";
 
-export interface ThemeActionState {
-  success: boolean;
-  error: string | null;
-  fieldErrors: Record<string, string[]>;
-}
-
 export async function updateThemeAction(
-  _prevState: ThemeActionState,
+  _prevState: ActionState,
   formData: FormData
-): Promise<ThemeActionState> {
+): Promise<ActionState> {
   const raw = {
     companyName: formData.get("companyName") as string,
     primaryColor: formData.get("primaryColor") as string,
@@ -23,12 +22,7 @@ export async function updateThemeAction(
   const parsed = tenantThemeSchema.safeParse(raw);
 
   if (!parsed.success) {
-    const flat = parsed.error.flatten();
-    return {
-      success: false,
-      error: "Verifique os campos e tente novamente.",
-      fieldErrors: flat.fieldErrors as Record<string, string[]>,
-    };
+    return validationErrorState(parsed.error);
   }
 
   const tenantId = formData.get("tenantId") as string;

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
+import { makeFormData } from "../helpers/form-data";
 
 vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
 
@@ -13,16 +14,7 @@ import {
   createTicketAction,
   assignTicketAction,
 } from "../../lib/tickets/actions";
-import { getTickets, getTicketById } from "../../lib/tickets/data";
-
-// Helper to create FormData from an object
-function makeFormData(fields: Record<string, string>): FormData {
-  const fd = new FormData();
-  for (const [key, value] of Object.entries(fields)) {
-    fd.append(key, value);
-  }
-  return fd;
-}
+import { getTicketById } from "../../lib/tickets/data";
 
 const createInitialState = {
   success: false,

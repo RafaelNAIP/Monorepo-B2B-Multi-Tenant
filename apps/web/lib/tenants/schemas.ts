@@ -18,5 +18,3 @@ export const tenantThemeSchema = z.object({
     .url("URL do logo inválida")
     .max(500, "URL deve ter no máximo 500 caracteres"),
 });
-
-export type TenantThemeInput = z.infer<typeof tenantThemeSchema>;

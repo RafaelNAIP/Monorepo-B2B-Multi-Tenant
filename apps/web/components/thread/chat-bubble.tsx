@@ -1,4 +1,5 @@
 import { SENDER_ROLE } from "@/lib/messages/constants";
+import { DEFAULT_PRIMARY_COLOR } from "@/lib/tenants/constants";
 import type { Message } from "@/lib/messages/types";
 
 interface ChatBubbleProps {
@@ -14,7 +15,7 @@ interface ChatBubbleProps {
 export function ChatBubble({
   message,
   isOwnMessage,
-  primaryColor = "#2563eb",
+  primaryColor = DEFAULT_PRIMARY_COLOR,
 }: ChatBubbleProps) {
   const roleLabel = SENDER_ROLE[message.senderRole];
   const time = new Date(message.createdAt).toLocaleTimeString("pt-BR", {

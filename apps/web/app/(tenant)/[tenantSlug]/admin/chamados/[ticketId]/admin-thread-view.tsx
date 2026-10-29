@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect, useCallback } from "react";
+import { useActionState } from "react";
 
 import type { Ticket } from "@/lib/tickets/types";
 import type { Message } from "@/lib/messages/types";
@@ -9,13 +9,11 @@ import {
   disconnectTicketAction,
   type AssignTicketActionState,
 } from "@/lib/tickets/actions";
-import { pollThreadMessages } from "@/lib/messages/actions";
 
+import { useThreadPolling } from "@/hooks/use-thread-polling";
 import { AdminThreadActions } from "@/components/thread/admin-thread-actions";
 import { MessageList } from "@/components/thread/message-list";
 import { MessageInput } from "@/components/thread/message-input";
-
-const POLL_INTERVAL_MS = 3000;
 
 interface AdminThreadViewProps {
   ticket: Ticket;
@@ -44,31 +42,15 @@ export function AdminThreadView({
   adminName,
   existingToken,
 }: AdminThreadViewProps) {
-  const [liveMessages, setLiveMessages] = useState<Message[]>(initialMessages);
-  const [liveTicket, setLiveTicket] = useState<Ticket>(initialTicket);
+  const { messages: liveMessages, ticket: liveTicket } = useThreadPolling(
+    initialTicket,
+    initialMessages
+  );
 
   const [disconnectState, disconnectAction, isDisconnecting] = useActionState(
     disconnectTicketAction,
     initialState
   );
-
-  // Polling para atualizar mensagens e status do ticket
-  const poll = useCallback(async () => {
-    try {
-      const result = await pollThreadMessages(initialTicket.id);
-      setLiveMessages(result.messages);
-      if (result.ticket) {
-        setLiveTicket(result.ticket);
-      }
-    } catch {
-      // silently ignore polling errors
-    }
-  }, [initialTicket.id]);
-
-  useEffect(() => {
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [poll]);
 
   const canSendMessages =
     liveTicket.status === "in_progress" || liveTicket.status === "open";

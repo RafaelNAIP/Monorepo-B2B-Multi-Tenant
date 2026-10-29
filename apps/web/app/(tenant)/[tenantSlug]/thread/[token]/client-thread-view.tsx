@@ -1,17 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-
 import type { Ticket } from "@/lib/tickets/types";
 import type { Message } from "@/lib/messages/types";
 import type { Tenant } from "@/lib/tenants/types";
-import { pollThreadMessages } from "@/lib/messages/actions";
 
+import { useThreadPolling } from "@/hooks/use-thread-polling";
 import { MessageList } from "@/components/thread/message-list";
 import { MessageInput } from "@/components/thread/message-input";
 import { FeedbackCard } from "@/components/thread/feedback-card";
-
-const POLL_INTERVAL_MS = 3000;
 
 interface ClientThreadViewProps {
   ticket: Ticket;
@@ -32,25 +28,10 @@ export function ClientThreadView({
   tenantSlug,
   clientName,
 }: ClientThreadViewProps) {
-  const [liveMessages, setLiveMessages] = useState<Message[]>(initialMessages);
-  const [liveTicket, setLiveTicket] = useState<Ticket>(initialTicket);
-
-  const poll = useCallback(async () => {
-    try {
-      const result = await pollThreadMessages(initialTicket.id);
-      setLiveMessages(result.messages);
-      if (result.ticket) {
-        setLiveTicket(result.ticket);
-      }
-    } catch {
-      // silently ignore polling errors
-    }
-  }, [initialTicket.id]);
-
-  useEffect(() => {
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [poll]);
+  const { messages: liveMessages, ticket: liveTicket } = useThreadPolling(
+    initialTicket,
+    initialMessages
+  );
 
   const isActive =
     liveTicket.status === "in_progress" || liveTicket.status === "open";

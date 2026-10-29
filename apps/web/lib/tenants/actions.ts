@@ -1,6 +1,9 @@
 "use server";
 
-import type { ActionState } from "@/lib/shared/action-state";
+import {
+  validationErrorState,
+  type ActionState,
+} from "@/lib/shared/action-state";
 
 import { tenantThemeSchema } from "./schemas";
 import { updateTenantTheme } from "./data";
@@ -19,12 +22,7 @@ export async function updateThemeAction(
   const parsed = tenantThemeSchema.safeParse(raw);
 
   if (!parsed.success) {
-    const flat = parsed.error.flatten();
-    return {
-      success: false,
-      error: "Verifique os campos e tente novamente.",
-      fieldErrors: flat.fieldErrors as Record<string, string[]>,
-    };
+    return validationErrorState(parsed.error);
   }
 
   const tenantId = formData.get("tenantId") as string;

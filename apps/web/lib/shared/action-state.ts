@@ -1,3 +1,5 @@
+import type { ZodError } from "zod";
+
 /**
  * Estado retornado pelas Server Actions que validam formulários com Zod
  * e são consumidas via `useActionState`.
@@ -16,3 +18,12 @@ export const INITIAL_ACTION_STATE: ActionState = {
   error: null,
   fieldErrors: {},
 };
+
+/** Estado de falha para erros de validação Zod de um formulário. */
+export function validationErrorState(error: ZodError): ActionState {
+  return {
+    success: false,
+    error: "Verifique os campos e tente novamente.",
+    fieldErrors: error.flatten().fieldErrors as Record<string, string[]>,
+  };
+}

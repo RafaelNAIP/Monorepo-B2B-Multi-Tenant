@@ -5,7 +5,10 @@ import { revalidatePath } from "next/cache";
 import { createMessageSchema, createThreadAccessSchema, feedbackSchema } from "./schemas";
 import { createMessage, createThreadAccess, getMessagesByTicket } from "./data";
 import { submitTicketFeedback, getTicketById } from "@/lib/tickets/data";
-import type { ActionState } from "@/lib/shared/action-state";
+import {
+  validationErrorState,
+  type ActionState,
+} from "@/lib/shared/action-state";
 import type { Message } from "./types";
 import type { Ticket } from "@/lib/tickets/types";
 
@@ -51,12 +54,7 @@ export async function sendMessageAction(
   const parsed = createMessageSchema.safeParse(raw);
 
   if (!parsed.success) {
-    const flat = parsed.error.flatten();
-    return {
-      success: false,
-      error: "Verifique os campos e tente novamente.",
-      fieldErrors: flat.fieldErrors as Record<string, string[]>,
-    };
+    return validationErrorState(parsed.error);
   }
 
   await createMessage({
@@ -95,12 +93,7 @@ export async function createThreadAccessAction(
   const parsed = createThreadAccessSchema.safeParse(raw);
 
   if (!parsed.success) {
-    const flat = parsed.error.flatten();
-    return {
-      success: false,
-      error: "Verifique os campos e tente novamente.",
-      fieldErrors: flat.fieldErrors as Record<string, string[]>,
-    };
+    return validationErrorState(parsed.error);
   }
 
   const access = await createThreadAccess({
@@ -137,12 +130,7 @@ export async function submitFeedbackAction(
   const parsed = feedbackSchema.safeParse(raw);
 
   if (!parsed.success) {
-    const flat = parsed.error.flatten();
-    return {
-      success: false,
-      error: "Verifique os campos e tente novamente.",
-      fieldErrors: flat.fieldErrors as Record<string, string[]>,
-    };
+    return validationErrorState(parsed.error);
   }
 
   const result = await submitTicketFeedback(parsed.data.ticketId, parsed.data.resolution);

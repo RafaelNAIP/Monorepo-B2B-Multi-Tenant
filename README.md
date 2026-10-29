@@ -77,9 +77,14 @@ monorepo-empresa/
 │       │           ├── chamados/     # Client ticket creation
 │       │           └── thread/
 │       │               └── [token]/  # Public client thread (no auth)
+│       │   └── api/
+│       │       └── threads/[ticketId]/events/  # SSE endpoint (real-time thread)
 │       ├── components/
 │       │   └── thread/               # Thread chat components
+│       ├── hooks/
+│       │   └── use-thread-sse.ts     # Real-time hook used by admin & client views
 │       ├── lib/
+│       │   ├── sse/                  # Real-time: event emitter + sync controller
 │       │   ├── tenants/              # Domain: Tenants
 │       │   ├── tickets/              # Domain: Tickets
 │       │   ├── messages/             # Domain: Messages & Threads
@@ -306,9 +311,11 @@ beforeEach(() => {
 
 This means tests run without a database connection — fully isolated and fast.
 
+The real-time (SSE) tests live in `__tests__/sse/` and avoid asserting on mocks: they subscribe to the **real** event emitter, call the **real** route handler and read its stream. The hook tests run in `jsdom` (`// @vitest-environment jsdom`).
+
 ### Current Coverage
 
-**166 tests** across 12 test files, organized by domain and layer:
+**241 tests** across 19 test files, organized by domain and layer:
 
 | Domain   | Schemas | Data Layer | Actions | Lifecycle | Total |
 | -------- | ------- | ---------- | ------- | --------- | ----- |
@@ -316,6 +323,9 @@ This means tests run without a database connection — fully isolated and fast.
 | Messages | 20      | 11         | 12      | —         | 43    |
 | Tenants  | 19      | 9          | 7       | —         | 35    |
 | Users    | 16      | 14         | —       | —         | 30    |
+| Real-time (SSE) | —  | —          | —       | —         | 73    |
+
+The 73 SSE tests cover: event emitter (11), SSE route handler (11), sync controller with polling fallback (19), `useThreadSSE` hook (8), actions emitting events (18) and an end-to-end integration of emitter + route + controller (6).
 
 ---
 
@@ -354,6 +364,27 @@ All IDs use MongoDB native ObjectIds. The `Ticket.code` field (e.g., `tkt_001`) 
 - Server Components use `getSession()` as a guard before rendering
 - Roles: `admin` (administrators) and `client` (end users)
 
+### Real-time Thread (SSE)
+
+The thread updates through **Server-Sent Events**. The SSE channel only *notifies* that something changed; the new state is fetched with the existing `pollThreadMessages` Server Action.
+
+```
+Server Action / checkAutoClose ──persist──▶ notifyThread(ticketId, type)
+                                                   │
+                                      ThreadEventEmitter (in-memory, per ticket)
+                                                   │
+                       GET /api/threads/[ticketId]/events  (text/event-stream)
+                                                   │
+                  createThreadSync (EventSource) ──▶ pollThreadMessages ──▶ React state
+```
+
+- Events: `new_message`, `ticket_updated`, `thread_disconnected` (emitted only **after** the data is persisted)
+- Heartbeat every 30s keeps proxies from closing idle connections
+- On every (re)connection the client fetches the current state, so nothing is lost while disconnected
+- Bursts of events are coalesced: one fetch at a time, plus one follow-up fetch
+- **Fallback:** after 3 consecutive SSE errors it falls back to polling every 5s and returns to SSE automatically when the connection reopens
+- The emitter is anchored on `globalThis`, so route handlers and Server Actions share the same instance even when bundled separately
+
 ### Server Actions
 
 All mutations follow the same pattern:
@@ -389,7 +420,7 @@ Login → Admin Panel
 1. Admin assigns ticket          → status: "in_progress"
 2. Admin generates public link   → creates ThreadAccess with unique token
 3. Client opens link             → /{tenantSlug}/thread/{token} (no auth required)
-4. Messages exchanged            → polling every 3s via pollThreadMessages Server Action
+4. Messages exchanged            → real-time via SSE (/api/threads/[ticketId]/events)
 5. Admin disconnects             → status: "pending_feedback", 24h deadline
 6. Client gives feedback         → "Resolved" or "Not resolved"
 7. Auto-close                    → If no response in 24h, auto-closes (check-on-access)
@@ -398,7 +429,7 @@ Login → Admin Panel
 **Key features:**
 - Token-based public access for clients (no login required)
 - Branded per tenant (colors, logo from tenant theme)
-- Message updates via 3-second polling (future: WebSocket/SSE for true real-time)
+- Real-time message and status updates via SSE, with automatic polling fallback
 - Client decides resolution after admin disconnects
 - Automatic closure after 24h deadline
 
@@ -498,17 +529,16 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 - [x] Public token-based access for clients (no auth required)
 - [x] Admin disconnect + client feedback flow
 - [x] Auto-close after 24h deadline (check-on-access pattern)
-- [x] Polling-based message updates (3s interval)
+- [x] Real-time thread updates via SSE (with polling fallback, replaces the 3s polling)
 - [x] Client dashboard with ticket list and filters
 - [x] Client ticket creation form with Zod validation
 - [x] 4 complete domains (tenants, tickets, users, messages)
 - [x] **Prisma + MongoDB** — Full database layer (migrated from in-memory mocks)
 - [x] Seed script with demo data (tenants, users, tickets, messages, threads)
-- [x] 166 unit tests passing (strict TDD with Prisma mocks)
+- [x] 241 tests passing (strict TDD, including SSE integration tests)
 
 ### 🔜 Next Steps
 
-- [ ] **Real-time (WebSocket/SSE)** — Replace 3s polling with true real-time communication in thread chat
 - [ ] **Password hashing (bcrypt)** — Login currently accepts any password; implement proper hash/verify
 - [ ] **Real file uploads** — Integrate with S3/R2 (currently visual-only)
 - [ ] **Server-side pagination** — RSC with Suspense streaming
@@ -516,6 +546,8 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 
 ### 🔮 Future
 
+- [ ] **Real-time: authorize the SSE endpoint** — `/api/threads/[ticketId]/events` is unauthenticated (same as `pollThreadMessages`). It carries no message data, but anyone with a `ticketId` can see that there is activity. Validate the thread token or the admin session
+- [ ] **Real-time: multiple server instances** — the event emitter is in-memory (single instance). To scale horizontally, swap `ThreadEventEmitter` for Redis pub/sub keeping the same `subscribe/emit` interface
 - [ ] CI/CD with GitHub Actions + Turbo remote cache
 - [ ] Internationalization (i18n) with next-intl
 - [ ] Rate limiting on Server Actions

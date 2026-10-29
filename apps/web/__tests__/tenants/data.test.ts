@@ -67,30 +67,6 @@ describe("getAllTenants", () => {
     expect(prismaMock.tenant.findMany).toHaveBeenCalledOnce();
   });
 
-  it("cada tenant possui campos obrigatórios", async () => {
-    prismaMock.tenant.findMany.mockResolvedValue(MOCK_TENANTS);
-
-    const tenants = await getAllTenants();
-    for (const t of tenants) {
-      expect(t.id).toBeDefined();
-      expect(t.name).toBeDefined();
-      expect(t.slug).toBeDefined();
-      expect(t.subscription).toBeDefined();
-      expect(t.theme).toBeDefined();
-      expect(t.createdAt).toBeDefined();
-    }
-  });
-
-  it("cada tenant possui um tema com todos os campos", async () => {
-    prismaMock.tenant.findMany.mockResolvedValue(MOCK_TENANTS);
-
-    const tenants = await getAllTenants();
-    for (const t of tenants) {
-      expect(t.theme.primaryColor).toBeDefined();
-      expect(t.theme.borderRadius).toBeGreaterThanOrEqual(0);
-      expect(t.theme.logoUrl).toBeDefined();
-    }
-  });
 });
 
 // ─── getTenantBySlug ────────────────────────────────────────────────

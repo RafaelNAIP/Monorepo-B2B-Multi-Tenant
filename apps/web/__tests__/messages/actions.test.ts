@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
+import { makeFormData } from "../helpers/form-data";
 
 vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
 
@@ -14,15 +15,6 @@ import {
   createThreadAccessAction,
   submitFeedbackAction,
 } from "../../lib/messages/actions";
-
-// Helper para criar FormData
-function makeFormData(data: Record<string, string>): FormData {
-  const fd = new FormData();
-  for (const [key, value] of Object.entries(data)) {
-    fd.set(key, value);
-  }
-  return fd;
-}
 
 const initialState = { success: false, error: null, fieldErrors: {} };
 

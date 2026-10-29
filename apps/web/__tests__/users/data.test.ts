@@ -94,6 +94,13 @@ describe("getUsersByTenant", () => {
     const t1Ids = t1.map((u) => u.id);
     const t2Ids = t2.map((u) => u.id);
     expect(t1Ids.some((id) => t2Ids.includes(id))).toBe(false);
+    // O isolamento vem do filtro enviado ao banco, não só dos dados do mock
+    expect(prismaMock.user.findMany).toHaveBeenNthCalledWith(1, {
+      where: { tenantId: "t_01" },
+    });
+    expect(prismaMock.user.findMany).toHaveBeenNthCalledWith(2, {
+      where: { tenantId: "t_02" },
+    });
   });
 });
 

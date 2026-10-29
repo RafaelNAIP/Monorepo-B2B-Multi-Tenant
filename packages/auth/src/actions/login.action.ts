@@ -34,6 +34,8 @@ export async function loginAction(
     email: formData.get("email"),
     password: formData.get("password"),
     tenantSlug: formData.get("tenantSlug"),
+    // Campo ausente ou vazio cai no default "client" do schema
+    role: formData.get("role") || undefined,
   };
 
   const validation = loginSchema.safeParse(raw);
@@ -48,8 +50,7 @@ export async function loginAction(
     };
   }
 
-  const { email, password, tenantSlug } = validation.data;
-  const role = (formData.get("role") as string) || "client";
+  const { email, tenantSlug, role } = validation.data;
 
   try {
     // 2. Resolve tenant no banco
@@ -68,7 +69,7 @@ export async function loginAction(
       where: {
         email,
         tenantId: tenant.id,
-        role: role as "admin" | "client",
+        role,
       },
     });
     if (!user) {

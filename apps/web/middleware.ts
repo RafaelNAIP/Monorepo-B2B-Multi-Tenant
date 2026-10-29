@@ -3,9 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 /**
  * Middleware multi-tenant:
  * 1. Resolve o tenant slug do path
- * 2. Injeta header x-tenant-slug para o @empresa/auth consumir
- * 3. Protege rotas /[tenant]/dashboard e /[tenant]/chamados contra acesso sem sessão
- * 4. Protege rotas /[tenant]/admin contra acesso sem sessão
+ * 2. Protege rotas /[tenant]/dashboard, /[tenant]/chamados e /[tenant]/admin
+ *    contra acesso sem sessão
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -19,13 +18,6 @@ export function middleware(request: NextRequest) {
     pathname.includes(".")
   ) {
     return NextResponse.next();
-  }
-
-  const response = NextResponse.next();
-
-  // Injeta o tenant slug como header para resolução server-side
-  if (tenantSlug) {
-    response.headers.set("x-tenant-slug", tenantSlug);
   }
 
   // Protege rotas de dashboard, chamados e admin
@@ -42,7 +34,7 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {

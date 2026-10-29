@@ -17,6 +17,8 @@ interface AdminThreadActionsProps {
   primaryColor?: string;
   onDisconnect: () => void;
   isDisconnecting: boolean;
+  /** false enquanto o cliente não se conectar e não houver 3 min de inatividade */
+  canDisconnect: boolean;
 }
 
 const initialState: MessageActionState = INITIAL_ACTION_STATE;
@@ -31,6 +33,7 @@ export function AdminThreadActions({
   primaryColor = DEFAULT_PRIMARY_COLOR,
   onDisconnect,
   isDisconnecting,
+  canDisconnect,
 }: AdminThreadActionsProps) {
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [generatedLink, setGeneratedLink] = useState(
@@ -94,7 +97,12 @@ export function AdminThreadActions({
           <button
             type="button"
             onClick={onDisconnect}
-            disabled={isDisconnecting}
+            disabled={isDisconnecting || !canDisconnect}
+            title={
+              canDisconnect
+                ? "Encerrar conversa com o cliente"
+                : "Aguarde o cliente se conectar ou 3 min de inatividade"
+            }
             className="ml-auto rounded-md bg-[var(--color-destructive,#dc2626)] px-3 py-1.5 text-xs font-medium text-white transition-colors disabled:opacity-50"
           >
             {isDisconnecting ? "Encerrando..." : "Encerrar conversa"}

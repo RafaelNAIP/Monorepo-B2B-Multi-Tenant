@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, startTransition, useMemo } from "react";
 
 import type { Ticket } from "@/lib/tickets/types";
 import type { Message } from "@/lib/messages/types";
@@ -55,11 +55,32 @@ export function AdminThreadView({
   const canSendMessages =
     liveTicket.status === "in_progress" || liveTicket.status === "open";
 
+  /** O cliente se conectou quando há pelo menos uma mensagem dele na thread. */
+  const clientConnected = useMemo(
+    () => liveMessages.some((m) => m.senderRole === "client"),
+    [liveMessages]
+  );
+
+  /**
+   * Permite encerrar quando:
+   * 1. O cliente já se conectou (enviou mensagem), OU
+   * 2. O ticket está em andamento há ≥ 3 minutos sem resposta do cliente
+   *    (inatividade — o admin pode descartar o chamado).
+   */
+  const inactivityMinutes = 3;
+  const ticketAgeMs =
+    Date.now() - new Date(liveTicket.createdAt).getTime();
+  const inactivityReached = ticketAgeMs >= inactivityMinutes * 60 * 1000;
+
+  const canDisconnect = clientConnected || inactivityReached;
+
   function handleDisconnect() {
     const formData = new FormData();
     formData.set("ticketId", liveTicket.id);
     formData.set("tenantSlug", tenantSlug);
-    disconnectAction(formData);
+    startTransition(() => {
+      disconnectAction(formData);
+    });
   }
 
   return (
@@ -72,6 +93,7 @@ export function AdminThreadView({
         primaryColor={tenant.theme.primaryColor}
         onDisconnect={handleDisconnect}
         isDisconnecting={isDisconnecting}
+        canDisconnect={canDisconnect}
       />
 
       {disconnectState.error && (

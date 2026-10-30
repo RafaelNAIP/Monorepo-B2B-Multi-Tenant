@@ -140,7 +140,7 @@ export function CreateTicketForm({
         <input
           type="hidden"
           name="attachmentKeys"
-          value={attachedFiles.map((f) => f.fileKey).join(",")}
+          value={JSON.stringify(attachedFiles.map((f) => f.fileKey))}
         />
         <Button
           type="button"

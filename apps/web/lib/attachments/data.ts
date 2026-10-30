@@ -42,6 +42,17 @@ export async function attachToTicket(
   db: AttachmentDb = prisma
 ): Promise<number> {
   if (input.keys.length === 0) return 0;
+
+  // DEBUG: buscar os attachments que existem com essas keys
+  const existing = await db.attachment.findMany({
+    where: { fileKey: { in: input.keys } },
+  });
+  console.log("[DEBUG attachToTicket] input:", JSON.stringify(input));
+  console.log("[DEBUG attachToTicket] existing attachments:", JSON.stringify(existing.map(a => ({
+    id: a.id, fileKey: a.fileKey, tenantId: a.tenantId, status: a.status,
+    ticketId: a.ticketId, messageId: a.messageId,
+  }))));
+
   const result = await db.attachment.updateMany({
     where: {
       fileKey: { in: input.keys },
@@ -52,6 +63,7 @@ export async function attachToTicket(
     },
     data: { ticketId: input.ticketId, status: "completed" },
   });
+  console.log("[DEBUG attachToTicket] updateMany count:", result.count);
   return result.count;
 }
 

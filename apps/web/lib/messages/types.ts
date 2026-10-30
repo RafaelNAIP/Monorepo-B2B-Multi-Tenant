@@ -1,5 +1,15 @@
 import type { SenderRole } from "./constants";
 
+// ─── Anexo de uma mensagem ───────────────────────────────────────
+
+export interface MessageAttachment {
+  id: string;
+  fileName: string;
+  fileKey: string;
+  fileSize: number;
+  mimeType: string;
+}
+
 // ─── Mensagem individual na thread ───────────────────────────────
 
 export interface Message {
@@ -10,4 +20,5 @@ export interface Message {
   senderName: string;
   content: string;
   createdAt: string;
+  attachments?: MessageAttachment[];
 }

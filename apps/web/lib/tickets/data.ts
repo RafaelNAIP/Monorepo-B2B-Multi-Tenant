@@ -1,5 +1,6 @@
 import { prisma } from "@empresa/db";
 
+import { ATTACHMENTS_INVALID, attachToTicket } from "@/lib/attachments/data";
 import { notifyThread } from "@/lib/sse/thread-event-emitter";
 import type { TicketCategory, TicketStatus } from "./constants";
 
@@ -55,28 +56,46 @@ export async function getTicketById(id: string) {
   return prisma.ticket.findUnique({ where: { id } });
 }
 
-/** Creates a new ticket with default status "open" and priority "medium". */
+/**
+ * Creates a new ticket with default status "open" and priority "medium".
+ * Com attachmentKeys, cria o chamado e associa os anexos na mesma transação;
+ * se algum anexo não puder ser associado, a transação é desfeita.
+ */
 export async function createTicket(input: {
   title: string;
   category: TicketCategory;
   description: string;
   tenantId: string;
   requester: string;
+  attachmentKeys?: string[];
 }) {
   const count = await prisma.ticket.count();
   const code = `tkt_${String(count + 1).padStart(3, "0")}`;
 
-  return prisma.ticket.create({
-    data: {
-      code,
-      title: input.title,
-      requester: input.requester,
-      status: "open",
-      priority: "medium",
-      category: categoryToEnum(input.category),
-      description: input.description,
-      tenantId: input.tenantId,
-    },
+  const data = {
+    code,
+    title: input.title,
+    requester: input.requester,
+    status: "open",
+    priority: "medium",
+    category: categoryToEnum(input.category),
+    description: input.description,
+    tenantId: input.tenantId,
+  };
+
+  const keys = input.attachmentKeys ?? [];
+  if (keys.length === 0) {
+    return prisma.ticket.create({ data });
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const ticket = await tx.ticket.create({ data });
+    const attached = await attachToTicket(
+      { keys, ticketId: ticket.id, tenantId: input.tenantId },
+      tx
+    );
+    if (attached !== keys.length) throw new Error(ATTACHMENTS_INVALID);
+    return ticket;
   });
 }
 

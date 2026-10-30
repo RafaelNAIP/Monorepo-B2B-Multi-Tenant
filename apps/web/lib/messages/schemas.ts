@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { attachmentKeysSchema } from "@/lib/attachments/schemas";
+
 // ─── createMessageSchema ─────────────────────────────────────────
 // Valida uma nova mensagem na thread de um chamado
 
@@ -24,6 +26,7 @@ export const createMessageSchema = z.object({
     .refine((val) => val.length > 0, {
       message: "Mensagem não pode ser vazia",
     }),
+  attachmentKeys: attachmentKeysSchema.optional(),
 });
 
 // ─── createThreadAccessSchema ────────────────────────────────────

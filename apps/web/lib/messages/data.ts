@@ -1,33 +1,55 @@
 import { prisma } from "@empresa/db";
 
+import { ATTACHMENTS_INVALID, attachToMessage } from "@/lib/attachments/data";
+
 import type { SenderRole } from "./constants";
 
 // ─── Messages API ────────────────────────────────────────────────
 
-/** Cria uma nova mensagem na thread de um chamado */
+/**
+ * Cria uma nova mensagem na thread de um chamado.
+ * Com attachmentKeys, grava a mensagem e associa os anexos na mesma transação.
+ */
 export async function createMessage(input: {
   ticketId: string;
   tenantId: string;
   senderRole: SenderRole;
   senderName: string;
   content: string;
+  attachmentKeys?: string[];
 }) {
-  return prisma.message.create({
-    data: {
-      ticketId: input.ticketId,
-      tenantId: input.tenantId,
-      senderRole: input.senderRole,
-      senderName: input.senderName,
-      content: input.content,
-    },
+  const data = {
+    ticketId: input.ticketId,
+    tenantId: input.tenantId,
+    senderRole: input.senderRole,
+    senderName: input.senderName,
+    content: input.content,
+  };
+
+  const keys = input.attachmentKeys ?? [];
+  if (keys.length === 0) {
+    return prisma.message.create({ data });
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const message = await tx.message.create({ data });
+    const attached = await attachToMessage(
+      { keys, messageId: message.id, ticketId: input.ticketId, tenantId: input.tenantId },
+      tx
+    );
+    if (attached !== keys.length) throw new Error(ATTACHMENTS_INVALID);
+    return message;
   });
 }
 
-/** Retorna todas as mensagens de um ticket, ordenadas por data */
+/** Retorna todas as mensagens de um ticket (com anexos concluídos), ordenadas por data */
 export async function getMessagesByTicket(ticketId: string) {
   return prisma.message.findMany({
     where: { ticketId },
     orderBy: { createdAt: "asc" },
+    include: {
+      attachments: { where: { status: "completed" }, orderBy: { createdAt: "asc" } },
+    },
   });
 }
 

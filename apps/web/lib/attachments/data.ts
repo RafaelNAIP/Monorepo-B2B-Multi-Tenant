@@ -2,6 +2,12 @@ import { prisma } from "@empresa/db";
 
 import { deleteFile } from "../storage/delete";
 
+/** Cliente Prisma ou client de transação (ambos expõem .attachment) */
+type AttachmentDb = Pick<typeof prisma, "attachment">;
+
+/** Erro lançado quando algum anexo informado não pôde ser associado (inválido, expirado ou de outro tenant) */
+export const ATTACHMENTS_INVALID = "ATTACHMENTS_INVALID";
+
 // ─── Attachments API ─────────────────────────────────────────────
 
 /** Registra um anexo como pending (antes do upload ao R2 ser confirmado) */
@@ -31,13 +37,12 @@ export async function createAttachment(input: {
  * Filtra por tenant e por "sem dono" para que keys forjadas não roubem anexos de outro tenant/registro.
  * Retorna quantos anexos foram realmente associados.
  */
-export async function attachToTicket(input: {
-  keys: string[];
-  ticketId: string;
-  tenantId: string;
-}): Promise<number> {
+export async function attachToTicket(
+  input: { keys: string[]; ticketId: string; tenantId: string },
+  db: AttachmentDb = prisma
+): Promise<number> {
   if (input.keys.length === 0) return 0;
-  const result = await prisma.attachment.updateMany({
+  const result = await db.attachment.updateMany({
     where: {
       fileKey: { in: input.keys },
       tenantId: input.tenantId,
@@ -51,14 +56,12 @@ export async function attachToTicket(input: {
 }
 
 /** Associa anexos pending a uma mensagem (e ao chamado da thread) */
-export async function attachToMessage(input: {
-  keys: string[];
-  messageId: string;
-  ticketId: string;
-  tenantId: string;
-}): Promise<number> {
+export async function attachToMessage(
+  input: { keys: string[]; messageId: string; ticketId: string; tenantId: string },
+  db: AttachmentDb = prisma
+): Promise<number> {
   if (input.keys.length === 0) return 0;
-  const result = await prisma.attachment.updateMany({
+  const result = await db.attachment.updateMany({
     where: {
       fileKey: { in: input.keys },
       tenantId: input.tenantId,

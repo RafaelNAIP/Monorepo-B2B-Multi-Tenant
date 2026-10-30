@@ -48,6 +48,8 @@ export function resetPrismaMocks(): void {
       }
     }
   }
+  // $transaction é função (não objeto), então precisa ser zerada explicitamente
+  prismaMock.$transaction.mockReset();
   // Re-setup $transaction default
   prismaMock.$transaction.mockImplementation(
     (fn: (tx: typeof prismaMock) => Promise<unknown>) => fn(prismaMock)

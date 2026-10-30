@@ -36,7 +36,7 @@ export type PresignRequest = z.infer<typeof presignRequestSchema>;
 
 /** Keys de anexos já enviados ao R2, usadas ao criar chamado/mensagem */
 export const attachmentKeysSchema = z
-  .array(z.string().min(1, "Anexo inválido"))
+  .array(z.string().min(1, "Anexo inválido"), { invalid_type_error: "Anexos inválidos" })
   .max(MAX_FILES_PER_UPLOAD, `Máximo de ${MAX_FILES_PER_UPLOAD} arquivos por envio`)
   .refine((keys) => new Set(keys).size === keys.length, {
     message: "Anexos duplicados não são permitidos",

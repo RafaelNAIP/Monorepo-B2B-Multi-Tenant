@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { TICKET_CATEGORIES } from "./constants";
+import { attachmentKeysSchema } from "@/lib/attachments/schemas";
 
-const ALLOWED_EXTENSIONS = ["pdf", "png", "jpg", "jpeg", "docx"] as const;
+import { TICKET_CATEGORIES } from "./constants";
 
 export const createTicketSchema = z.object({
   title: z
@@ -18,21 +18,7 @@ export const createTicketSchema = z.object({
     .min(10, "Descrição deve ter ao menos 10 caracteres")
     .max(2000, "Descrição deve ter no máximo 2000 caracteres")
     .trim(),
-  attachment: z
-    .string()
-    .optional()
-    .refine(
-      (val) => {
-        if (!val) return true;
-        const ext = val.split(".").pop()?.toLowerCase();
-        return ext
-          ? (ALLOWED_EXTENSIONS as readonly string[]).includes(ext)
-          : false;
-      },
-      {
-        message: `Formato de arquivo não suportado. Permitidos: ${ALLOWED_EXTENSIONS.join(", ")}`,
-      }
-    ),
+  attachmentKeys: attachmentKeysSchema.optional(),
 });
 
 export const ticketFilterSchema = z.object({

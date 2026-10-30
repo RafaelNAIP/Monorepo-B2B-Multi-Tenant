@@ -298,18 +298,27 @@ describe("data layer de tickets", () => {
     it("associa os anexos pending do tenant ao chamado criado", async () => {
       prismaMock.ticket.count.mockResolvedValue(0);
       prismaMock.ticket.create.mockResolvedValue({ id: "T9", tenantId: "t_01" });
+      prismaMock.attachment.findMany.mockResolvedValue([
+        { id: "A1", fileKey: "k1", tenantId: "t_01", status: "pending", ticketId: null, messageId: null },
+        { id: "A2", fileKey: "k2", tenantId: "t_01", status: "pending", ticketId: null, messageId: null },
+      ]);
       prismaMock.attachment.updateMany.mockResolvedValue({ count: 2 });
 
       await createTicket({ ...base, attachmentKeys: ["k1", "k2"] });
 
-      const arg = prismaMock.attachment.updateMany.mock.calls[0][0];
-      expect(arg.where).toMatchObject({ fileKey: { in: ["k1", "k2"] }, tenantId: "t_01", status: "pending" });
-      expect(arg.data).toEqual({ ticketId: "T9", status: "completed" });
+      const findArg = prismaMock.attachment.findMany.mock.calls[0][0];
+      expect(findArg.where).toMatchObject({ fileKey: { in: ["k1", "k2"] }, tenantId: "t_01", status: "pending" });
+      const updateArg = prismaMock.attachment.updateMany.mock.calls[0][0];
+      expect(updateArg.where).toEqual({ id: { in: ["A1", "A2"] } });
+      expect(updateArg.data).toEqual({ ticketId: "T9", status: "completed" });
     });
 
     it("executa criação e associação dentro de uma transação", async () => {
       prismaMock.ticket.count.mockResolvedValue(0);
       prismaMock.ticket.create.mockResolvedValue({ id: "T9", tenantId: "t_01" });
+      prismaMock.attachment.findMany.mockResolvedValue([
+        { id: "A1", fileKey: "k1", tenantId: "t_01", status: "pending", ticketId: null, messageId: null },
+      ]);
       prismaMock.attachment.updateMany.mockResolvedValue({ count: 1 });
 
       await createTicket({ ...base, attachmentKeys: ["k1"] });
@@ -320,6 +329,9 @@ describe("data layer de tickets", () => {
     it("lança erro (e desfaz a transação) quando algum anexo não pôde ser associado", async () => {
       prismaMock.ticket.count.mockResolvedValue(0);
       prismaMock.ticket.create.mockResolvedValue({ id: "T9", tenantId: "t_01" });
+      prismaMock.attachment.findMany.mockResolvedValue([
+        { id: "A1", fileKey: "k1", tenantId: "t_01", status: "pending", ticketId: null, messageId: null },
+      ]);
       prismaMock.attachment.updateMany.mockResolvedValue({ count: 1 });
 
       await expect(createTicket({ ...base, attachmentKeys: ["k1", "k2"] })).rejects.toThrow(

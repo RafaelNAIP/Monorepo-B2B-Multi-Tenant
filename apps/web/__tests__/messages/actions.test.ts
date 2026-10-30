@@ -307,15 +307,17 @@ describe("sendMessageAction — anexos", () => {
 
   it("envia mensagem associando os anexos informados", async () => {
     prismaMock.message.create.mockResolvedValue({ id: "msg_new", ...baseFields, createdAt: new Date() });
+    prismaMock.attachment.findMany.mockResolvedValue([
+      { id: "A1", fileKey: "t_01/tkt_001/a.png", tenantId: "t_01", status: "pending", ticketId: null, messageId: null },
+    ]);
     prismaMock.attachment.updateMany.mockResolvedValue({ count: 1 });
 
     const fd = makeFormData({ ...baseFields, attachmentKeys: JSON.stringify(["t_01/tkt_001/a.png"]) });
     const result = await sendMessageAction(initialState, fd);
 
     expect(result.success).toBe(true);
-    expect(prismaMock.attachment.updateMany.mock.calls[0][0].where.fileKey).toEqual({
-      in: ["t_01/tkt_001/a.png"],
-    });
+    const findArg = prismaMock.attachment.findMany.mock.calls[0][0];
+    expect(findArg.where.fileKey).toEqual({ in: ["t_01/tkt_001/a.png"] });
   });
 
   it("rejeita attachmentKeys malformado sem criar a mensagem", async () => {
@@ -329,7 +331,7 @@ describe("sendMessageAction — anexos", () => {
 
   it("retorna erro de anexo inválido e não notifica a thread", async () => {
     prismaMock.message.create.mockResolvedValue({ id: "msg_new", ...baseFields, createdAt: new Date() });
-    prismaMock.attachment.updateMany.mockResolvedValue({ count: 0 });
+    prismaMock.attachment.findMany.mockResolvedValue([]); // nenhum candidato encontrado
 
     const fd = makeFormData({ ...baseFields, attachmentKeys: JSON.stringify(["outro/tenant/x.png"]) });
     const result = await sendMessageAction(initialState, fd);

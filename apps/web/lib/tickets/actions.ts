@@ -17,29 +17,21 @@ export async function createTicketAction(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  const rawAttachmentKeys = formData.get("attachmentKeys");
-  const parsedKeys = parseAttachmentKeysField(rawAttachmentKeys);
-  console.log("[DEBUG createTicket] rawAttachmentKeys:", rawAttachmentKeys);
-  console.log("[DEBUG createTicket] parsedKeys:", parsedKeys);
-
   const raw = {
     title: formData.get("title") as string,
     category: formData.get("category") as string,
     description: formData.get("description") as string,
-    attachmentKeys: parsedKeys,
+    attachmentKeys: parseAttachmentKeysField(formData.get("attachmentKeys")),
   };
 
   const parsed = createTicketSchema.safeParse(raw);
 
   if (!parsed.success) {
-    console.log("[DEBUG createTicket] validation errors:", JSON.stringify(parsed.error.flatten()));
     return validationErrorState(parsed.error);
   }
 
   const tenantId = formData.get("tenantId") as string;
   const requester = formData.get("requester") as string;
-  console.log("[DEBUG createTicket] tenantId:", tenantId);
-  console.log("[DEBUG createTicket] attachmentKeys:", parsed.data.attachmentKeys);
 
   try {
     await createTicket({
@@ -51,7 +43,6 @@ export async function createTicketAction(
       attachmentKeys: parsed.data.attachmentKeys,
     });
   } catch (error) {
-    console.error("[DEBUG createTicket] error:", error);
     if (error instanceof Error && error.message === ATTACHMENTS_INVALID) {
       return { success: false, error: ATTACHMENTS_INVALID_MESSAGE, fieldErrors: {} };
     }

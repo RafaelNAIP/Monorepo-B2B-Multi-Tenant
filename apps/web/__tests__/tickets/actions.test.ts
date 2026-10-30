@@ -181,6 +181,10 @@ describe("createTicketAction", () => {
   it("cria chamado associando os anexos enviados ao R2", async () => {
     prismaMock.ticket.count.mockResolvedValue(0);
     prismaMock.ticket.create.mockResolvedValue(createdTicket);
+    prismaMock.attachment.findMany.mockResolvedValue([
+      { id: "A1", fileKey: `${TENANT}/novo/a.png`, tenantId: TENANT, status: "pending", ticketId: null, messageId: null },
+      { id: "A2", fileKey: `${TENANT}/novo/b.pdf`, tenantId: TENANT, status: "pending", ticketId: null, messageId: null },
+    ]);
     prismaMock.attachment.updateMany.mockResolvedValue({ count: 2 });
 
     const formData = makeFormData({
@@ -190,10 +194,9 @@ describe("createTicketAction", () => {
     const result = await createTicketAction(createInitialState, formData);
 
     expect(result.success).toBe(true);
-    const arg = prismaMock.attachment.updateMany.mock.calls[0][0];
-    expect(arg.where.fileKey).toEqual({ in: [`${TENANT}/novo/a.png`, `${TENANT}/novo/b.pdf`] });
-    expect(arg.where.tenantId).toBe(TENANT);
-    expect(arg.data.ticketId).toBe("tkt_new");
+    const updateArg = prismaMock.attachment.updateMany.mock.calls[0][0];
+    expect(updateArg.where).toEqual({ id: { in: ["A1", "A2"] } });
+    expect(updateArg.data.ticketId).toBe("tkt_new");
   });
 
   it("cria chamado sem anexos sem tocar na tabela de anexos", async () => {
@@ -228,7 +231,11 @@ describe("createTicketAction", () => {
   it("falha sem sucesso quando algum anexo é inválido, expirado ou de outro tenant", async () => {
     prismaMock.ticket.count.mockResolvedValue(0);
     prismaMock.ticket.create.mockResolvedValue(createdTicket);
-    prismaMock.attachment.updateMany.mockResolvedValue({ count: 1 }); // só 1 de 2 foi associado
+    // findMany retorna só 1 dos 2 (o do outro tenant não existe)
+    prismaMock.attachment.findMany.mockResolvedValue([
+      { id: "A1", fileKey: `${TENANT}/novo/a.png`, tenantId: TENANT, status: "pending", ticketId: null, messageId: null },
+    ]);
+    prismaMock.attachment.updateMany.mockResolvedValue({ count: 1 });
 
     const formData = makeFormData({
       ...validCreateFields,

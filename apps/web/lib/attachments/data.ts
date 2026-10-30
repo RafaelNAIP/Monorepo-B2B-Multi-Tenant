@@ -23,6 +23,7 @@ export async function createAttachment(input: {
     data: {
       tenantId: input.tenantId,
       ticketId: input.ticketId ?? null,
+      messageId: null,
       fileKey: input.fileKey,
       fileName: input.fileName,
       fileSize: input.fileSize,
@@ -43,27 +44,23 @@ export async function attachToTicket(
 ): Promise<number> {
   if (input.keys.length === 0) return 0;
 
-  // DEBUG: buscar os attachments que existem com essas keys
-  const existing = await db.attachment.findMany({
-    where: { fileKey: { in: input.keys } },
-  });
-  console.log("[DEBUG attachToTicket] input:", JSON.stringify(input));
-  console.log("[DEBUG attachToTicket] existing attachments:", JSON.stringify(existing.map(a => ({
-    id: a.id, fileKey: a.fileKey, tenantId: a.tenantId, status: a.status,
-    ticketId: a.ticketId, messageId: a.messageId,
-  }))));
-
-  const result = await db.attachment.updateMany({
+  // Busca os candidatos e filtra em código para evitar problemas
+  // com campos null vs ausente no MongoDB
+  const candidates = await db.attachment.findMany({
     where: {
       fileKey: { in: input.keys },
       tenantId: input.tenantId,
       status: "pending",
-      ticketId: null,
-      messageId: null,
     },
+  });
+  const eligible = candidates.filter((a) => !a.ticketId && !a.messageId);
+
+  if (eligible.length === 0) return 0;
+
+  const result = await db.attachment.updateMany({
+    where: { id: { in: eligible.map((a) => a.id) } },
     data: { ticketId: input.ticketId, status: "completed" },
   });
-  console.log("[DEBUG attachToTicket] updateMany count:", result.count);
   return result.count;
 }
 
@@ -73,14 +70,20 @@ export async function attachToMessage(
   db: AttachmentDb = prisma
 ): Promise<number> {
   if (input.keys.length === 0) return 0;
-  const result = await db.attachment.updateMany({
+
+  const candidates = await db.attachment.findMany({
     where: {
       fileKey: { in: input.keys },
       tenantId: input.tenantId,
       status: "pending",
-      ticketId: null,
-      messageId: null,
     },
+  });
+  const eligible = candidates.filter((a) => !a.ticketId && !a.messageId);
+
+  if (eligible.length === 0) return 0;
+
+  const result = await db.attachment.updateMany({
+    where: { id: { in: eligible.map((a) => a.id) } },
     data: { messageId: input.messageId, ticketId: input.ticketId, status: "completed" },
   });
   return result.count;

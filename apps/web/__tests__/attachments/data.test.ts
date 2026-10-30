@@ -49,38 +49,70 @@ describe("createAttachment", () => {
 
 describe("attachToTicket", () => {
   it("só associa anexos pending, do mesmo tenant, ainda sem dono", async () => {
+    prismaMock.attachment.findMany.mockResolvedValue([
+      { id: "A1", fileKey: "k1", tenantId: TENANT_A, status: "pending", ticketId: null, messageId: null },
+      { id: "A2", fileKey: "k2", tenantId: TENANT_A, status: "pending", ticketId: null, messageId: null },
+    ]);
     prismaMock.attachment.updateMany.mockResolvedValue({ count: 2 });
     await attachToTicket({ keys: ["k1", "k2"], ticketId: "T1", tenantId: TENANT_A });
-    const arg = prismaMock.attachment.updateMany.mock.calls[0][0];
-    expect(arg.where).toEqual({
+
+    // findMany busca por fileKey, tenantId, status
+    const findArg = prismaMock.attachment.findMany.mock.calls[0][0];
+    expect(findArg.where).toEqual({
       fileKey: { in: ["k1", "k2"] },
       tenantId: TENANT_A,
       status: "pending",
-      ticketId: null,
-      messageId: null,
     });
-    expect(arg.data).toEqual({ ticketId: "T1", status: "completed" });
+
+    // updateMany filtra por IDs dos elegíveis
+    const updateArg = prismaMock.attachment.updateMany.mock.calls[0][0];
+    expect(updateArg.where).toEqual({ id: { in: ["A1", "A2"] } });
+    expect(updateArg.data).toEqual({ ticketId: "T1", status: "completed" });
+  });
+
+  it("ignora candidatos que já têm dono (ticketId ou messageId preenchido)", async () => {
+    prismaMock.attachment.findMany.mockResolvedValue([
+      { id: "A1", fileKey: "k1", tenantId: TENANT_A, status: "pending", ticketId: "outro", messageId: null },
+      { id: "A2", fileKey: "k2", tenantId: TENANT_A, status: "pending", ticketId: null, messageId: "msg" },
+    ]);
+    const result = await attachToTicket({ keys: ["k1", "k2"], ticketId: "T1", tenantId: TENANT_A });
+    expect(result).toBe(0);
+    expect(prismaMock.attachment.updateMany).not.toHaveBeenCalled();
   });
 
   it("retorna a quantidade de anexos realmente associados", async () => {
+    prismaMock.attachment.findMany.mockResolvedValue([
+      { id: "A1", fileKey: "k1", tenantId: TENANT_A, status: "pending", ticketId: null, messageId: null },
+    ]);
     prismaMock.attachment.updateMany.mockResolvedValue({ count: 1 });
     await expect(attachToTicket({ keys: ["k1", "k2"], ticketId: "T1", tenantId: TENANT_A })).resolves.toBe(1);
   });
 
   it("não consulta o banco quando não há keys", async () => {
     await expect(attachToTicket({ keys: [], ticketId: "T1", tenantId: TENANT_A })).resolves.toBe(0);
+    expect(prismaMock.attachment.findMany).not.toHaveBeenCalled();
     expect(prismaMock.attachment.updateMany).not.toHaveBeenCalled();
   });
 });
 
 describe("attachToMessage", () => {
   it("associa à mensagem e ao ticket da mesma thread", async () => {
+    prismaMock.attachment.findMany.mockResolvedValue([
+      { id: "A1", fileKey: "k1", tenantId: TENANT_A, status: "pending", ticketId: null, messageId: null },
+    ]);
     prismaMock.attachment.updateMany.mockResolvedValue({ count: 1 });
     await attachToMessage({ keys: ["k1"], messageId: "M1", ticketId: "T1", tenantId: TENANT_A });
-    const arg = prismaMock.attachment.updateMany.mock.calls[0][0];
-    expect(arg.where.tenantId).toBe(TENANT_A);
-    expect(arg.where.status).toBe("pending");
-    expect(arg.data).toEqual({ messageId: "M1", ticketId: "T1", status: "completed" });
+
+    const findArg = prismaMock.attachment.findMany.mock.calls[0][0];
+    expect(findArg.where).toEqual({
+      fileKey: { in: ["k1"] },
+      tenantId: TENANT_A,
+      status: "pending",
+    });
+
+    const updateArg = prismaMock.attachment.updateMany.mock.calls[0][0];
+    expect(updateArg.where).toEqual({ id: { in: ["A1"] } });
+    expect(updateArg.data).toEqual({ messageId: "M1", ticketId: "T1", status: "completed" });
   });
 });
 

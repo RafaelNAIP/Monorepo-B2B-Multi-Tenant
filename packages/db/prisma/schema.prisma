@@ -78,6 +78,7 @@ model Tenant {
   tickets        Ticket[]
   messages       Message[]
   threadAccesses ThreadAccess[]
+  attachments    Attachment[]
 }
 
 model User {
@@ -113,6 +114,7 @@ model Ticket {
   tenant       Tenant        @relation(fields: [tenantId], references: [id])
   messages     Message[]
   threadAccess ThreadAccess?
+  attachments  Attachment[]
 }
 
 model Message {
@@ -124,8 +126,9 @@ model Message {
   content    String
   createdAt  DateTime   @default(now())
 
-  ticket Ticket @relation(fields: [ticketId], references: [id])
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  ticket      Ticket       @relation(fields: [ticketId], references: [id])
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  attachments Attachment[]
 }
 
 model ThreadAccess {
@@ -139,4 +142,27 @@ model ThreadAccess {
 
   ticket Ticket @relation(fields: [ticketId], references: [id])
   tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Attachment {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  tenantId  String       @db.ObjectId
+  ticketId  String?      @db.ObjectId
+  messageId String?      @db.ObjectId
+  fileName  String
+  fileKey   String       @unique
+  fileSize  Int
+  mimeType  String
+  status    UploadStatus @default(pending)
+  createdAt DateTime     @default(now())
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  ticket  Ticket?  @relation(fields: [ticketId], references: [id])
+  message Message? @relation(fields: [messageId], references: [id])
+}
+
+enum UploadStatus {
+  pending
+  completed
+  failed
 }

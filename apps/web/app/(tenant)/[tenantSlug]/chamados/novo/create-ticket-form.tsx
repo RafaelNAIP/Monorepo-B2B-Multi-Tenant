@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 
 import { Button, Input, Label } from "@empresa/ui";
 
+import { ImageUploadModal } from "@/components/shared/image-upload-modal";
+import type { UploadedFile } from "@/lib/attachments/client";
+
 import { createTicketAction } from "@/lib/tickets/actions";
 import { INITIAL_ACTION_STATE } from "@/lib/shared/action-state";
 import { TICKET_CATEGORIES } from "@/lib/tickets/constants";
@@ -26,6 +29,8 @@ export function CreateTicketForm({
     INITIAL_ACTION_STATE
   );
   const [category, setCategory] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<UploadedFile[]>([]);
 
   // Redirect on success
   useEffect(() => {
@@ -130,25 +135,51 @@ export function CreateTicketForm({
         )}
       </div>
 
-      {/* Attachment (visual only) */}
+      {/* Attachments */}
       <div className="space-y-2">
-        <Label htmlFor="attachment">Anexo (opcional)</Label>
-        <Input
-          id="attachment"
-          name="attachment"
-          type="text"
-          placeholder="Nome do arquivo (ex: relatorio.pdf)"
-          error={!!state.fieldErrors.attachment}
-          aria-describedby={
-            state.fieldErrors.attachment ? "attachment-error" : undefined
-          }
+        <input
+          type="hidden"
+          name="attachmentKeys"
+          value={JSON.stringify(attachedFiles.map((f) => f.fileKey))}
         />
-        <p className="text-xs text-[var(--color-muted-foreground)]">
-          Extensões permitidas: .pdf, .png, .jpg, .jpeg, .docx
-        </p>
-        {state.fieldErrors.attachment && (
-          <p id="attachment-error" className="text-sm text-[var(--color-destructive)]">
-            {state.fieldErrors.attachment[0]}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setModalOpen(true)}
+        >
+          📎 Anexar imagens{attachedFiles.length > 0 ? ` (${attachedFiles.length})` : ""}
+        </Button>
+        {attachedFiles.length > 0 && (
+          <ul className="mt-2 space-y-1 text-sm text-[var(--color-muted-foreground)]">
+            {attachedFiles.map((f) => (
+              <li key={f.fileKey} className="flex items-center gap-2">
+                <span className="truncate">{f.name}</span>
+                <button
+                  type="button"
+                  className="text-xs text-[var(--color-destructive)] hover:underline"
+                  onClick={() =>
+                    setAttachedFiles((prev) =>
+                      prev.filter((p) => p.fileKey !== f.fileKey)
+                    )
+                  }
+                >
+                  Remover
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <ImageUploadModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onConfirm={(files) => {
+            setAttachedFiles((prev) => [...prev, ...files]);
+            setModalOpen(false);
+          }}
+        />
+        {state.fieldErrors.attachmentKeys && (
+          <p role="alert" className="text-sm text-[var(--color-destructive)]">
+            {state.fieldErrors.attachmentKeys[0]}
           </p>
         )}
       </div>

@@ -159,44 +159,92 @@ describe("createTicketAction", () => {
     expect(Object.keys(result.fieldErrors).length).toBeGreaterThanOrEqual(2);
   });
 
-  it("aceita chamado com anexo válido (pdf)", async () => {
-    prismaMock.ticket.count.mockResolvedValue(8);
-    prismaMock.ticket.create.mockResolvedValue({
-      id: "new_id",
-      code: "tkt_009",
-      title: validCreateFields.title,
-      requester: validCreateFields.requester,
-      status: "open",
-      priority: "medium",
-      category: "financeiro",
-      description: validCreateFields.description,
-      tenantId: "t_01",
-      assignedTo: null,
-      disconnectedAt: null,
-      feedbackDeadline: null,
-      relatedTicketId: null,
-      closedReason: null,
-      createdAt: new Date(),
-    });
+  const TENANT = validCreateFields.tenantId;
+  const createdTicket = {
+    id: "tkt_new",
+    code: "tkt_001",
+    title: validCreateFields.title,
+    requester: validCreateFields.requester,
+    status: "open",
+    priority: "medium",
+    category: "financeiro",
+    description: validCreateFields.description,
+    tenantId: TENANT,
+    assignedTo: null,
+    disconnectedAt: null,
+    feedbackDeadline: null,
+    relatedTicketId: null,
+    closedReason: null,
+    createdAt: new Date(),
+  };
+
+  it("cria chamado associando os anexos enviados ao R2", async () => {
+    prismaMock.ticket.count.mockResolvedValue(0);
+    prismaMock.ticket.create.mockResolvedValue(createdTicket);
+    prismaMock.attachment.findMany.mockResolvedValue([
+      { id: "A1", fileKey: `${TENANT}/novo/a.png`, tenantId: TENANT, status: "pending", ticketId: null, messageId: null },
+      { id: "A2", fileKey: `${TENANT}/novo/b.pdf`, tenantId: TENANT, status: "pending", ticketId: null, messageId: null },
+    ]);
+    prismaMock.attachment.updateMany.mockResolvedValue({ count: 2 });
 
     const formData = makeFormData({
       ...validCreateFields,
-      attachment: "documento.pdf",
+      attachmentKeys: JSON.stringify([`${TENANT}/novo/a.png`, `${TENANT}/novo/b.pdf`]),
     });
     const result = await createTicketAction(createInitialState, formData);
 
     expect(result.success).toBe(true);
+    const updateArg = prismaMock.attachment.updateMany.mock.calls[0][0];
+    expect(updateArg.where).toEqual({ id: { in: ["A1", "A2"] } });
+    expect(updateArg.data.ticketId).toBe("tkt_new");
   });
 
-  it("rejeita chamado com anexo de extensão inválida", async () => {
+  it("cria chamado sem anexos sem tocar na tabela de anexos", async () => {
+    prismaMock.ticket.count.mockResolvedValue(0);
+    prismaMock.ticket.create.mockResolvedValue(createdTicket);
+
+    const result = await createTicketAction(createInitialState, makeFormData(validCreateFields));
+
+    expect(result.success).toBe(true);
+    expect(prismaMock.attachment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejeita attachmentKeys que não seja JSON de lista", async () => {
+    const formData = makeFormData({ ...validCreateFields, attachmentKeys: "{nao-json" });
+    const result = await createTicketAction(createInitialState, formData);
+
+    expect(result.success).toBe(false);
+    expect(result.fieldErrors.attachmentKeys?.[0]).toBe("Anexos inválidos");
+    expect(prismaMock.ticket.create).not.toHaveBeenCalled();
+  });
+
+  it("rejeita mais de 5 anexos", async () => {
+    const keys = Array.from({ length: 6 }, (_, i) => `${TENANT}/novo/${i}.png`);
+    const formData = makeFormData({ ...validCreateFields, attachmentKeys: JSON.stringify(keys) });
+    const result = await createTicketAction(createInitialState, formData);
+
+    expect(result.success).toBe(false);
+    expect(result.fieldErrors.attachmentKeys).toBeDefined();
+    expect(prismaMock.ticket.create).not.toHaveBeenCalled();
+  });
+
+  it("falha sem sucesso quando algum anexo é inválido, expirado ou de outro tenant", async () => {
+    prismaMock.ticket.count.mockResolvedValue(0);
+    prismaMock.ticket.create.mockResolvedValue(createdTicket);
+    // findMany retorna só 1 dos 2 (o do outro tenant não existe)
+    prismaMock.attachment.findMany.mockResolvedValue([
+      { id: "A1", fileKey: `${TENANT}/novo/a.png`, tenantId: TENANT, status: "pending", ticketId: null, messageId: null },
+    ]);
+    prismaMock.attachment.updateMany.mockResolvedValue({ count: 1 });
+
     const formData = makeFormData({
       ...validCreateFields,
-      attachment: "malware.exe",
+      attachmentKeys: JSON.stringify([`${TENANT}/novo/a.png`, "outro-tenant/novo/b.png"]),
     });
     const result = await createTicketAction(createInitialState, formData);
 
     expect(result.success).toBe(false);
-    expect(result.fieldErrors.attachment).toBeDefined();
+    expect(result.error).toBe("Um ou mais anexos são inválidos ou expiraram. Envie os arquivos novamente.");
   });
 
   it("não chama prisma.ticket.create quando validação falha", async () => {

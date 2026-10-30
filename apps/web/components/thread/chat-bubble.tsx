@@ -1,3 +1,4 @@
+import { AttachmentList } from "@/components/shared/attachment-list";
 import { SENDER_ROLE } from "@/lib/messages/constants";
 import { DEFAULT_PRIMARY_COLOR } from "@/lib/tenants/constants";
 import type { Message } from "@/lib/messages/types";
@@ -6,6 +7,8 @@ interface ChatBubbleProps {
   message: Message;
   isOwnMessage: boolean;
   primaryColor?: string;
+  /** Token da thread pública: necessário para o cliente (sem sessão) baixar anexos */
+  threadToken?: string;
 }
 
 /**
@@ -16,6 +19,7 @@ export function ChatBubble({
   message,
   isOwnMessage,
   primaryColor = DEFAULT_PRIMARY_COLOR,
+  threadToken,
 }: ChatBubbleProps) {
   const roleLabel = SENDER_ROLE[message.senderRole];
   const time = new Date(message.createdAt).toLocaleTimeString("pt-BR", {
@@ -52,6 +56,7 @@ export function ChatBubble({
           </span>
         </div>
         <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+        <AttachmentList attachments={message.attachments} threadToken={threadToken} />
         <p
           className={`mt-1 text-right text-[10px] ${
             isOwnMessage ? "text-white/60" : "text-[var(--color-muted-foreground)]"

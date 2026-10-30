@@ -56,6 +56,7 @@ This project tackles the challenge of building a B2B SaaS platform where multipl
 | UI Components  | Radix UI + Class Variance Authority + Tailwind |
 | Authentication | jose (JWT) + httpOnly cookies                  |
 | Testing        | Vitest (workspace mode, strict TDD)            |
+| File Storage   | Cloudflare R2 (S3-compatible, presigned URLs)  |
 | Styling        | CSS Custom Properties (design tokens)          |
 
 ---
@@ -77,9 +78,24 @@ monorepo-empresa/
 │       │           ├── chamados/     # Client ticket creation
 │       │           └── thread/
 │       │               └── [token]/  # Public client thread (no auth)
+│       │   └── api/
+│       │       └── threads/[ticketId]/events/  # SSE endpoint (real-time thread)
+│       │   └── api/
+│       │       ├── threads/[ticketId]/events/  # SSE endpoint (real-time thread)
+│       │       └── upload/
+│       │           ├── presign/       # Generate presigned URLs for R2 upload
+│       │           └── download/      # Proxy download from R2 (tenant-scoped)
 │       ├── components/
+│       │   ├── shared/
+│       │   │   ├── image-upload-modal.tsx  # Drag-and-drop modal with progress & cancel
+│       │   │   └── file-uploader.tsx       # Inline file uploader (used in thread chat)
 │       │   └── thread/               # Thread chat components
+│       ├── hooks/
+│       │   └── use-thread-sse.ts     # Real-time hook used by admin & client views
 │       ├── lib/
+│       │   ├── attachments/          # Attachment lifecycle (presign, associate, cleanup)
+│       │   ├── storage/              # R2/S3 client, presign, keys, constants
+│       │   ├── sse/                  # Real-time: event emitter + sync controller
 │       │   ├── tenants/              # Domain: Tenants
 │       │   ├── tickets/              # Domain: Tickets
 │       │   ├── messages/             # Domain: Messages & Threads
@@ -111,6 +127,27 @@ lib/<domain>/
 ├── schemas.ts     # Zod validation schemas
 ├── data.ts        # Data layer (Prisma queries — all async)
 └── actions.ts     # Server Actions (form handlers)
+```
+
+### Attachments Domain
+
+The `lib/attachments/` and `lib/storage/` modules handle file uploads end-to-end:
+
+```
+lib/attachments/
+├── schemas.ts     # Zod schemas (file metadata, presign request, attachment keys)
+├── data.ts        # Attachment CRUD (create pending → associate → complete)
+├── access.ts      # Auth resolution (session or thread token)
+├── client.ts      # Browser-side upload logic (presign → PUT to R2)
+├── form.ts        # Form field parsing (attachmentKeys JSON)
+└── cleanup.ts     # Orphan attachment cleanup (pending > 24h)
+
+lib/storage/
+├── client.ts      # S3Client configured for Cloudflare R2
+├── presign.ts     # Generate presigned upload/download URLs
+├── keys.ts        # File key builder ({tenantId}/{ticketId|novo}/{uuid}.{ext})
+├── constants.ts   # Allowed MIME types, max file size, expiry
+└── delete.ts      # Delete file from R2
 ```
 
 ---
@@ -191,6 +228,13 @@ Create `.env` files in **two locations**:
 ```env
 DATABASE_URL="mongodb+srv://<user>:<password>@<cluster>.mongodb.net/empresa?retryWrites=true&w=majority"
 JWT_SECRET="any-secure-string-here"
+
+# Cloudflare R2 (file uploads — optional, uploads disabled if missing)
+R2_ACCOUNT_ID="your-cloudflare-account-id"
+R2_ACCESS_KEY_ID="your-r2-access-key-id"
+R2_SECRET_ACCESS_KEY="your-r2-secret-access-key"
+R2_BUCKET_NAME="your-bucket-name"
+R2_PUBLIC_URL="https://your-bucket.r2.dev"  # optional, for public access
 ```
 
 **`packages/db/.env`** (Prisma CLI reads from here):
@@ -306,16 +350,28 @@ beforeEach(() => {
 
 This means tests run without a database connection — fully isolated and fast.
 
+The real-time (SSE) tests live in `__tests__/sse/` and avoid asserting on mocks: they subscribe to the **real** event emitter, call the **real** route handler and read its stream. The hook tests run in `jsdom` (`// @vitest-environment jsdom`).
+
 ### Current Coverage
 
-**166 tests** across 12 test files, organized by domain and layer:
+**404 tests** across 32 test files, organized by domain and layer:
 
-| Domain   | Schemas | Data Layer | Actions | Lifecycle | Total |
-| -------- | ------- | ---------- | ------- | --------- | ----- |
-| Tickets  | 10      | 18         | 16      | 16        | 60    |
-| Messages | 20      | 11         | 12      | —         | 43    |
-| Tenants  | 19      | 9          | 7       | —         | 35    |
-| Users    | 16      | 14         | —       | —         | 30    |
+| Domain              | Schemas | Data Layer | Actions | Other      | Total |
+| ------------------- | ------- | ---------- | ------- | ---------- | ----- |
+| Tickets             | 16      | 20         | 20      | 15 (lifecycle) | 71 |
+| Messages            | 25      | 15         | 15      | —          | 55    |
+| Attachments         | 19      | 14         | —       | 36 (client, modal, uploader, cleanup) | 69 |
+| Storage / Upload    | —       | —          | —       | 31 (presign, keys, client, routes) | 31 |
+| Tenants             | 19      | 7          | 7       | —          | 33    |
+| Users               | 16      | 14         | —       | —          | 30    |
+| Real-time (SSE)     | —       | —          | —       | 73         | 73    |
+| Auth                | 4       | —          | —       | —          | 4     |
+| Thread UI           | —       | —          | —       | 6 (chat bubble) | 6  |
+| **Total**           |         |            |         |            | **404** |
+
+The 73 SSE tests cover: event emitter (11), SSE route handler (11), sync controller with polling fallback (19), `useThreadSSE` hook (8), actions emitting events (18) and an end-to-end integration of emitter + route + controller (6).
+
+The 69 attachment tests cover: Zod schemas (19), data layer with MongoDB null-vs-absent handling (14), browser upload client (25), image upload modal (11), file uploader component (11), and orphan cleanup (7).
 
 ---
 
@@ -343,6 +399,7 @@ The `@empresa/db` package provides a singleton PrismaClient and re-exports all g
 | `User`         | User with `admin` or `client` role (unique per tenant)   |
 | `Ticket`       | Support ticket with full status lifecycle                 |
 | `Message`      | Chat message in a ticket thread                          |
+| `Attachment`   | File uploaded to R2 (pending → completed lifecycle)       |
 | `ThreadAccess` | Public token-based access for client thread               |
 
 All IDs use MongoDB native ObjectIds. The `Ticket.code` field (e.g., `tkt_001`) is a human-readable identifier separate from the ObjectId `id`.
@@ -353,6 +410,55 @@ All IDs use MongoDB native ObjectIds. The `Ticket.code` field (e.g., `tkt_001`) 
 - Middleware protects routes (`/dashboard`, `/chamados`, `/admin`)
 - Server Components use `getSession()` as a guard before rendering
 - Roles: `admin` (administrators) and `client` (end users)
+
+### Real-time Thread (SSE)
+
+The thread updates through **Server-Sent Events**. The SSE channel only *notifies* that something changed; the new state is fetched with the existing `pollThreadMessages` Server Action.
+
+```
+Server Action / checkAutoClose ──persist──▶ notifyThread(ticketId, type)
+                                                   │
+                                      ThreadEventEmitter (in-memory, per ticket)
+                                                   │
+                       GET /api/threads/[ticketId]/events  (text/event-stream)
+                                                   │
+                  createThreadSync (EventSource) ──▶ pollThreadMessages ──▶ React state
+```
+
+- Events: `new_message`, `ticket_updated`, `thread_disconnected` (emitted only **after** the data is persisted)
+- Heartbeat every 30s keeps proxies from closing idle connections
+- On every (re)connection the client fetches the current state, so nothing is lost while disconnected
+- Bursts of events are coalesced: one fetch at a time, plus one follow-up fetch
+- **Fallback:** after 3 consecutive SSE errors it falls back to polling every 5s and returns to SSE automatically when the connection reopens
+- The emitter is anchored on `globalThis`, so route handlers and Server Actions share the same instance even when bundled separately
+
+### File Uploads (Cloudflare R2)
+
+Files are uploaded directly from the browser to Cloudflare R2 using **presigned URLs**, keeping the Next.js server out of the data path:
+
+```
+Browser                         Next.js API                    Cloudflare R2
+   │                                │                              │
+   ├── POST /api/upload/presign ───▶│                              │
+   │   (file metadata + auth)       ├── createAttachment(pending)  │
+   │                                ├── getPresignedUploadUrl() ──▶│
+   │◀── { uploadUrl, fileKey } ─────┤                              │
+   │                                │                              │
+   ├── PUT uploadUrl (binary) ─────────────────────────────────────▶│
+   │◀── 200 OK ────────────────────────────────────────────────────┤
+   │                                │                              │
+   ├── Submit form (fileKeys) ─────▶│                              │
+   │                                ├── attachToTicket/Message()   │
+   │                                │   (pending → completed)      │
+```
+
+**Key design decisions:**
+
+- **Image-only uploads** — restricted to `.png`, `.jpg`, `.jpeg`, `.webp` (max 10 MB each, max 5 per upload)
+- **Tenant isolation** — file keys are prefixed with `{tenantId}/`, and all queries filter by `tenantId`
+- **Two upload UIs** — `ImageUploadModal` (drag-and-drop modal with progress bars and cancel) for ticket creation; `FileUploader` (inline) for thread messages
+- **Orphan cleanup** — `cleanupOrphanAttachments()` deletes pending attachments older than 24h (both R2 file and database record)
+- **Secure download** — `/api/upload/download/[...fileKey]` validates tenant ownership before generating a presigned download URL
 
 ### Server Actions
 
@@ -389,7 +495,7 @@ Login → Admin Panel
 1. Admin assigns ticket          → status: "in_progress"
 2. Admin generates public link   → creates ThreadAccess with unique token
 3. Client opens link             → /{tenantSlug}/thread/{token} (no auth required)
-4. Messages exchanged            → polling every 3s via pollThreadMessages Server Action
+4. Messages exchanged            → real-time via SSE (/api/threads/[ticketId]/events)
 5. Admin disconnects             → status: "pending_feedback", 24h deadline
 6. Client gives feedback         → "Resolved" or "Not resolved"
 7. Auto-close                    → If no response in 24h, auto-closes (check-on-access)
@@ -398,7 +504,7 @@ Login → Admin Panel
 **Key features:**
 - Token-based public access for clients (no login required)
 - Branded per tenant (colors, logo from tenant theme)
-- Message updates via 3-second polling (future: WebSocket/SSE for true real-time)
+- Real-time message and status updates via SSE, with automatic polling fallback
 - Client decides resolution after admin disconnects
 - Automatic closure after 24h deadline
 
@@ -498,24 +604,30 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 - [x] Public token-based access for clients (no auth required)
 - [x] Admin disconnect + client feedback flow
 - [x] Auto-close after 24h deadline (check-on-access pattern)
-- [x] Polling-based message updates (3s interval)
+- [x] Real-time thread updates via SSE (with polling fallback, replaces the 3s polling)
 - [x] Client dashboard with ticket list and filters
 - [x] Client ticket creation form with Zod validation
 - [x] 4 complete domains (tenants, tickets, users, messages)
 - [x] **Prisma + MongoDB** — Full database layer (migrated from in-memory mocks)
 - [x] Seed script with demo data (tenants, users, tickets, messages, threads)
-- [x] 166 unit tests passing (strict TDD with Prisma mocks)
+- [x] **File uploads via Cloudflare R2** — presigned URLs, image-only restriction, tenant-scoped keys
+- [x] **ImageUploadModal** — drag-and-drop modal with thumbnails, progress bars, and upload cancel (AbortController)
+- [x] **FileUploader** — inline uploader for thread message attachments
+- [x] **Attachment lifecycle** — pending → completed association (ticket or message), orphan cleanup after 24h
+- [x] **Secure download proxy** — tenant-scoped presigned download URLs
+- [x] 5 complete domains (tenants, tickets, users, messages, attachments)
+- [x] 404 tests passing (strict TDD, including SSE integration and upload tests)
 
 ### 🔜 Next Steps
 
-- [ ] **Real-time (WebSocket/SSE)** — Replace 3s polling with true real-time communication in thread chat
 - [ ] **Password hashing (bcrypt)** — Login currently accepts any password; implement proper hash/verify
-- [ ] **Real file uploads** — Integrate with S3/R2 (currently visual-only)
 - [ ] **Server-side pagination** — RSC with Suspense streaming
 - [ ] **E2E tests** — Playwright for critical flows
 
 ### 🔮 Future
 
+- [ ] **Real-time: authorize the SSE endpoint** — `/api/threads/[ticketId]/events` is unauthenticated (same as `pollThreadMessages`). It carries no message data, but anyone with a `ticketId` can see that there is activity. Validate the thread token or the admin session
+- [ ] **Real-time: multiple server instances** — the event emitter is in-memory (single instance). To scale horizontally, swap `ThreadEventEmitter` for Redis pub/sub keeping the same `subscribe/emit` interface
 - [ ] CI/CD with GitHub Actions + Turbo remote cache
 - [ ] Internationalization (i18n) with next-intl
 - [ ] Rate limiting on Server Actions
@@ -537,6 +649,9 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 | `Could not find Prisma Schema` | Running `prisma generate` from the wrong directory | Run from `packages/db/`, not the project root |
 | `Cannot find module '@empresa/db'` | Missing from `transpilePackages` | Check `apps/web/next.config.ts` includes `@empresa/db` |
 | `Cannot find module 'next'` (Windows) | pnpm symlink issue | Add `node-linker=hoisted` to `.npmrc` and reinstall |
+| `Upload indisponível: variáveis do R2 não configuradas` | Missing R2 env vars | Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` in `apps/web/.env` |
+| `Can't resolve '@aws-sdk/client-s3'` | Missing S3 SDK | Run `npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner` in `apps/web` |
+| `Anexos Inválidos` on ticket/message submit | Attachment association failed | Likely a MongoDB null-vs-absent issue; ensure you're on the latest commit with the two-step find+filter fix |
 
 ---
 
@@ -568,6 +683,14 @@ Next.js loads `.env.local` with **higher priority** than `.env`. An old `.env.lo
 ### Password Verification
 
 Login currently accepts **any password** if the user exists in the database. This is a placeholder — implement bcrypt hash/verify before any production use.
+
+### Prisma + MongoDB: null vs absent fields
+
+Prisma's MongoDB adapter does **not** match `fieldName: null` against documents where that field was never set (absent). This is a known gotcha. The attachment data layer handles it with a two-step approach: `findMany` without null filters, then filter in JavaScript with `!a.fieldName` (which catches both `null` and `undefined`). Always set optional fields explicitly to `null` in `create()` calls to avoid this issue in new code.
+
+### Cloudflare R2 Setup
+
+To enable file uploads, create an R2 bucket in Cloudflare and configure CORS to allow `PUT` from your development origin (`http://localhost:3000`). Generate an API token with **Object Read & Write** permission for your bucket, then set the environment variables in `apps/web/.env`.
 
 ### npm Workspaces Alternative
 

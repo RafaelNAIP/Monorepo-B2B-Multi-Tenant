@@ -196,3 +196,40 @@ describe("feedbackSchema", () => {
     expect(result.success).toBe(false);
   });
 });
+
+// ─── createMessageSchema: anexos ─────────────────────────────────
+
+describe("createMessageSchema — attachmentKeys", () => {
+  const validInput = {
+    ticketId: "tkt_001",
+    tenantId: "t_01",
+    senderRole: "client" as const,
+    senderName: "Maria Cliente",
+    content: "Segue o print do erro",
+  };
+
+  it("aceita mensagem com attachmentKeys", () => {
+    const result = createMessageSchema.safeParse({ ...validInput, attachmentKeys: ["t/tk/a.png"] });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.attachmentKeys).toEqual(["t/tk/a.png"]);
+  });
+
+  it("aceita mensagem sem attachmentKeys", () => {
+    expect(createMessageSchema.safeParse(validInput).success).toBe(true);
+  });
+
+  it("rejeita mais de 5 anexos", () => {
+    const keys = Array.from({ length: 6 }, (_, i) => `t/tk/${i}.png`);
+    expect(createMessageSchema.safeParse({ ...validInput, attachmentKeys: keys }).success).toBe(false);
+  });
+
+  it("rejeita anexos duplicados", () => {
+    const result = createMessageSchema.safeParse({ ...validInput, attachmentKeys: ["t/tk/a.png", "t/tk/a.png"] });
+    expect(result.success).toBe(false);
+  });
+
+  it("continua exigindo texto mesmo com anexo", () => {
+    const result = createMessageSchema.safeParse({ ...validInput, content: "", attachmentKeys: ["t/tk/a.png"] });
+    expect(result.success).toBe(false);
+  });
+});

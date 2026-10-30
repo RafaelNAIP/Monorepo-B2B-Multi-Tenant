@@ -9,6 +9,9 @@ import {
 
 import { createTicketSchema, assignTicketSchema } from "./schemas";
 import { createTicket, assignTicket, disconnectTicket } from "./data";
+import { notifyThread } from "@/lib/sse/thread-event-emitter";
+import { ATTACHMENTS_INVALID } from "@/lib/attachments/data";
+import { ATTACHMENTS_INVALID_MESSAGE, parseAttachmentKeysField } from "@/lib/attachments/form";
 
 export async function createTicketAction(
   _prevState: ActionState,
@@ -18,7 +21,7 @@ export async function createTicketAction(
     title: formData.get("title") as string,
     category: formData.get("category") as string,
     description: formData.get("description") as string,
-    attachment: (formData.get("attachment") as string) || undefined,
+    attachmentKeys: parseAttachmentKeysField(formData.get("attachmentKeys")),
   };
 
   const parsed = createTicketSchema.safeParse(raw);
@@ -30,13 +33,21 @@ export async function createTicketAction(
   const tenantId = formData.get("tenantId") as string;
   const requester = formData.get("requester") as string;
 
-  await createTicket({
-    title: parsed.data.title,
-    category: parsed.data.category,
-    description: parsed.data.description,
-    tenantId,
-    requester,
-  });
+  try {
+    await createTicket({
+      title: parsed.data.title,
+      category: parsed.data.category,
+      description: parsed.data.description,
+      tenantId,
+      requester,
+      attachmentKeys: parsed.data.attachmentKeys,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === ATTACHMENTS_INVALID) {
+      return { success: false, error: ATTACHMENTS_INVALID_MESSAGE, fieldErrors: {} };
+    }
+    throw error;
+  }
 
   return {
     success: true,
@@ -80,6 +91,8 @@ export async function assignTicketAction(
     };
   }
 
+  notifyThread(parsed.data.ticketId, "ticket_updated");
+
   if (tenantSlug) {
     revalidatePath(`/${tenantSlug}/admin/chamados`);
   }
@@ -114,6 +127,8 @@ export async function disconnectTicketAction(
       error: "Chamado não encontrado ou não está em andamento.",
     };
   }
+
+  notifyThread(ticketId, "thread_disconnected");
 
   if (tenantSlug) {
     revalidatePath(`/${tenantSlug}/admin/chamados`);

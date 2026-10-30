@@ -17,6 +17,7 @@ function createMockDelegate() {
     findFirst: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
     delete: vi.fn(),
     deleteMany: vi.fn(),
     count: vi.fn(),
@@ -32,6 +33,7 @@ export const prismaMock = {
   ticket: createMockDelegate(),
   message: createMockDelegate(),
   threadAccess: createMockDelegate(),
+  attachment: createMockDelegate(),
   $transaction: vi.fn((fn: (tx: typeof prismaMock) => Promise<unknown>) => fn(prismaMock)),
 };
 
@@ -46,6 +48,8 @@ export function resetPrismaMocks(): void {
       }
     }
   }
+  // $transaction é função (não objeto), então precisa ser zerada explicitamente
+  prismaMock.$transaction.mockReset();
   // Re-setup $transaction default
   prismaMock.$transaction.mockImplementation(
     (fn: (tx: typeof prismaMock) => Promise<unknown>) => fn(prismaMock)

@@ -7,6 +7,7 @@ interface MessageListProps {
   messages: Message[];
   currentRole: SenderRole;
   primaryColor?: string;
+  threadToken?: string;
 }
 
 /**
@@ -17,6 +18,7 @@ export function MessageList({
   messages,
   currentRole,
   primaryColor,
+  threadToken,
 }: MessageListProps) {
   if (messages.length === 0) {
     return (
@@ -36,6 +38,7 @@ export function MessageList({
           message={msg}
           isOwnMessage={msg.senderRole === currentRole}
           primaryColor={primaryColor}
+          threadToken={threadToken}
         />
       ))}
     </div>

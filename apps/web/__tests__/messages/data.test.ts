@@ -140,7 +140,65 @@ describe("data layer de mensagens", () => {
       expect(prismaMock.message.findMany).toHaveBeenCalledWith({
         where: { ticketId: "tkt_001" },
         orderBy: { createdAt: "asc" },
+        include: {
+          attachments: { where: { status: "completed" }, orderBy: { createdAt: "asc" } },
+        },
       });
+    });
+  });
+
+  describe("createMessage com anexos", () => {
+    const base = {
+      ticketId: "tkt_001",
+      tenantId: "t_01",
+      senderRole: "client" as const,
+      senderName: "Maria",
+      content: "Segue o print",
+    };
+
+    it("associa anexos pending do tenant à mensagem e ao chamado da thread", async () => {
+      prismaMock.message.create.mockResolvedValue({ id: "M1", ...base });
+      prismaMock.attachment.findMany.mockResolvedValue([
+        { id: "A1", fileKey: "k1", tenantId: "t_01", status: "pending", ticketId: null, messageId: null },
+        { id: "A2", fileKey: "k2", tenantId: "t_01", status: "pending", ticketId: null, messageId: null },
+      ]);
+      prismaMock.attachment.updateMany.mockResolvedValue({ count: 2 });
+
+      await createMessage({ ...base, attachmentKeys: ["k1", "k2"] });
+
+      const findArg = prismaMock.attachment.findMany.mock.calls[0][0];
+      expect(findArg.where).toMatchObject({ fileKey: { in: ["k1", "k2"] }, tenantId: "t_01", status: "pending" });
+      const updateArg = prismaMock.attachment.updateMany.mock.calls[0][0];
+      expect(updateArg.where).toEqual({ id: { in: ["A1", "A2"] } });
+      expect(updateArg.data).toEqual({ messageId: "M1", ticketId: "tkt_001", status: "completed" });
+    });
+
+    it("grava mensagem e associação na mesma transação", async () => {
+      prismaMock.message.create.mockResolvedValue({ id: "M1", ...base });
+      prismaMock.attachment.findMany.mockResolvedValue([
+        { id: "A1", fileKey: "k1", tenantId: "t_01", status: "pending", ticketId: null, messageId: null },
+      ]);
+      prismaMock.attachment.updateMany.mockResolvedValue({ count: 1 });
+
+      await createMessage({ ...base, attachmentKeys: ["k1"] });
+
+      expect(prismaMock.$transaction).toHaveBeenCalledOnce();
+    });
+
+    it("lança erro quando algum anexo não pôde ser associado", async () => {
+      prismaMock.message.create.mockResolvedValue({ id: "M1", ...base });
+      prismaMock.attachment.findMany.mockResolvedValue([]); // nenhum candidato encontrado
+
+      await expect(createMessage({ ...base, attachmentKeys: ["k1"] })).rejects.toThrow("ATTACHMENTS_INVALID");
+    });
+
+    it("sem anexos mantém o fluxo simples, sem transação", async () => {
+      prismaMock.message.create.mockResolvedValue({ id: "M1", ...base });
+
+      await createMessage({ ...base, attachmentKeys: [] });
+
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      expect(prismaMock.attachment.updateMany).not.toHaveBeenCalled();
     });
   });
 

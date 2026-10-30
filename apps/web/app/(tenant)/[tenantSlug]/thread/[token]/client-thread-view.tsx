@@ -4,7 +4,7 @@ import type { Ticket } from "@/lib/tickets/types";
 import type { Message } from "@/lib/messages/types";
 import type { Tenant } from "@/lib/tenants/types";
 
-import { useThreadPolling } from "@/hooks/use-thread-polling";
+import { useThreadSSE } from "@/hooks/use-thread-sse";
 import { MessageList } from "@/components/thread/message-list";
 import { MessageInput } from "@/components/thread/message-input";
 import { FeedbackCard } from "@/components/thread/feedback-card";
@@ -15,6 +15,8 @@ interface ClientThreadViewProps {
   tenant: Tenant;
   tenantSlug: string;
   clientName: string;
+  /** Token da thread pública, usado para enviar e baixar anexos sem sessão */
+  threadToken: string;
 }
 
 /**
@@ -27,8 +29,9 @@ export function ClientThreadView({
   tenant,
   tenantSlug,
   clientName,
+  threadToken,
 }: ClientThreadViewProps) {
-  const { messages: liveMessages, ticket: liveTicket } = useThreadPolling(
+  const { messages: liveMessages, ticket: liveTicket } = useThreadSSE(
     initialTicket,
     initialMessages
   );
@@ -47,6 +50,7 @@ export function ClientThreadView({
           messages={liveMessages}
           currentRole="client"
           primaryColor={tenant.theme.primaryColor}
+          threadToken={threadToken}
         />
       </div>
 
@@ -83,6 +87,7 @@ export function ClientThreadView({
         tenantSlug={tenantSlug}
         primaryColor={tenant.theme.primaryColor}
         disabled={!isActive}
+        threadToken={threadToken}
       />
     </div>
   );

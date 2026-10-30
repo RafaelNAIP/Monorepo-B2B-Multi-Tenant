@@ -38,6 +38,47 @@ describe("createTicketSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("aceita attachmentKeys com até 5 chaves", () => {
+    const result = createTicketSchema.safeParse({
+      ...validInput,
+      attachmentKeys: ["t/novo/a.png", "t/novo/b.pdf"],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.attachmentKeys).toEqual(["t/novo/a.png", "t/novo/b.pdf"]);
+  });
+
+  it("aceita chamado sem attachmentKeys", () => {
+    expect(createTicketSchema.safeParse(validInput).success).toBe(true);
+  });
+
+  it("rejeita mais de 5 attachmentKeys", () => {
+    const keys = Array.from({ length: 6 }, (_, i) => `t/novo/${i}.png`);
+    const result = createTicketSchema.safeParse({ ...validInput, attachmentKeys: keys });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejeita attachmentKeys duplicadas", () => {
+    const result = createTicketSchema.safeParse({
+      ...validInput,
+      attachmentKeys: ["t/novo/a.png", "t/novo/a.png"],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejeita attachmentKeys que não seja lista, com mensagem em português", () => {
+    const result = createTicketSchema.safeParse({ ...validInput, attachmentKeys: "texto" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.flatten().fieldErrors.attachmentKeys?.[0]).toBe("Anexos inválidos");
+    }
+  });
+
+  it("não aceita mais o campo legado 'attachment' como nome de arquivo", () => {
+    const result = createTicketSchema.safeParse({ ...validInput, attachment: "malware.exe" });
+    expect(result.success).toBe(true);
+    if (result.success) expect("attachment" in result.data).toBe(false);
+  });
 });
 
 describe("ticketFilterSchema", () => {

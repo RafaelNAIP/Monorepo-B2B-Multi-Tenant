@@ -63,6 +63,7 @@ export default async function ClientThreadPage({ params }: ThreadPageProps) {
         tenant={tenant}
         tenantSlug={tenantSlug}
         clientName={access.clientName}
+        threadToken={token}
       />
     </div>
   );

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 
 import { Button, Input, Label } from "@empresa/ui";
 
+import { FileUploader } from "@/components/shared/file-uploader";
+
 import { createTicketAction } from "@/lib/tickets/actions";
 import { INITIAL_ACTION_STATE } from "@/lib/shared/action-state";
 import { TICKET_CATEGORIES } from "@/lib/tickets/constants";
@@ -26,6 +28,7 @@ export function CreateTicketForm({
     INITIAL_ACTION_STATE
   );
   const [category, setCategory] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   // Redirect on success
   useEffect(() => {
@@ -130,33 +133,20 @@ export function CreateTicketForm({
         )}
       </div>
 
-      {/* Attachment (visual only) */}
+      {/* Attachments */}
       <div className="space-y-2">
-        <Label htmlFor="attachment">Anexo (opcional)</Label>
-        <Input
-          id="attachment"
-          name="attachment"
-          type="text"
-          placeholder="Nome do arquivo (ex: relatorio.pdf)"
-          error={!!state.fieldErrors.attachment}
-          aria-describedby={
-            state.fieldErrors.attachment ? "attachment-error" : undefined
-          }
-        />
-        <p className="text-xs text-[var(--color-muted-foreground)]">
-          Extensões permitidas: .pdf, .png, .jpg, .jpeg, .docx
-        </p>
-        {state.fieldErrors.attachment && (
-          <p id="attachment-error" className="text-sm text-[var(--color-destructive)]">
-            {state.fieldErrors.attachment[0]}
+        <FileUploader onUploadingChange={setUploading} />
+        {state.fieldErrors.attachmentKeys && (
+          <p role="alert" className="text-sm text-[var(--color-destructive)]">
+            {state.fieldErrors.attachmentKeys[0]}
           </p>
         )}
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" disabled={isPending}>
-          {isPending ? "Criando..." : "Criar Chamado"}
+        <Button type="submit" disabled={isPending || uploading}>
+          {isPending ? "Criando..." : uploading ? "Enviando anexos..." : "Criar Chamado"}
         </Button>
         <Button
           type="button"

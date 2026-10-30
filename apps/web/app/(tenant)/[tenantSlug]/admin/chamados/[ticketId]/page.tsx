@@ -6,12 +6,14 @@ import { getSession } from "@empresa/auth";
 
 import { getTicketById, checkAutoClose } from "@/lib/tickets/data";
 import { getMessagesByTicket } from "@/lib/messages/data";
+import { getAttachmentsByTicket } from "@/lib/attachments/data";
 import { getThreadAccessByTicket } from "@/lib/messages/data";
 import { getTenantBySlug } from "@/lib/tenants/data";
 import { getUserById } from "@/lib/users/data";
 import { TICKET_STATUS } from "@/lib/tickets/constants";
 import { Badge } from "@empresa/ui";
 
+import { AttachmentList } from "@/components/shared/attachment-list";
 import { ThreadHeader } from "@/components/thread/thread-header";
 import { AdminThreadView } from "./admin-thread-view";
 
@@ -53,6 +55,7 @@ export default async function AdminTicketDetailPage({
   }
 
   const messages = await getMessagesByTicket(ticketId);
+  const ticketAttachments = await getAttachmentsByTicket(ticketId, session.tenantId);
   const threadAccess = await getThreadAccessByTicket(ticketId);
   const adminUser = await getUserById(session.sub);
   const adminName = adminUser?.name ?? "Admin";
@@ -102,6 +105,15 @@ export default async function AdminTicketDetailPage({
           <p className="mt-3 text-sm text-[var(--color-foreground)]">
             {ticket.description}
           </p>
+        )}
+
+        {ticketAttachments.length > 0 && (
+          <div className="mt-4">
+            <h2 className="text-sm font-semibold text-[var(--color-foreground)]">
+              Anexos do chamado
+            </h2>
+            <AttachmentList attachments={ticketAttachments} />
+          </div>
         )}
       </div>
 

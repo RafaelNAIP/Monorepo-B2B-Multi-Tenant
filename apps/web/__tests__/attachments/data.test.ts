@@ -85,11 +85,11 @@ describe("attachToMessage", () => {
 });
 
 describe("getAttachmentsByTicket", () => {
-  it("filtra por tenant e retorna apenas anexos completed", async () => {
+  it("filtra por tenant, só completed e exclui anexos de mensagens (são do chamado em si)", async () => {
     prismaMock.attachment.findMany.mockResolvedValue([]);
     await getAttachmentsByTicket("T1", TENANT_A);
     const arg = prismaMock.attachment.findMany.mock.calls[0][0];
-    expect(arg.where).toEqual({ ticketId: "T1", tenantId: TENANT_A, status: "completed" });
+    expect(arg.where).toEqual({ ticketId: "T1", tenantId: TENANT_A, status: "completed", messageId: null });
     expect(arg.orderBy).toEqual({ createdAt: "asc" });
   });
 });

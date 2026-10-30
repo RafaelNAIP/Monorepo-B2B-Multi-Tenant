@@ -74,10 +74,10 @@ export async function attachToMessage(
   return result.count;
 }
 
-/** Anexos concluídos de um chamado */
+/** Anexos concluídos do chamado em si (os das mensagens ficam na thread) */
 export async function getAttachmentsByTicket(ticketId: string, tenantId: string) {
   return prisma.attachment.findMany({
-    where: { ticketId, tenantId, status: "completed" },
+    where: { ticketId, tenantId, status: "completed", messageId: null },
     orderBy: { createdAt: "asc" },
   });
 }

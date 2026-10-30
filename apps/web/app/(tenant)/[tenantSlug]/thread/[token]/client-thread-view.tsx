@@ -15,6 +15,8 @@ interface ClientThreadViewProps {
   tenant: Tenant;
   tenantSlug: string;
   clientName: string;
+  /** Token da thread pública, usado para enviar e baixar anexos sem sessão */
+  threadToken: string;
 }
 
 /**
@@ -27,6 +29,7 @@ export function ClientThreadView({
   tenant,
   tenantSlug,
   clientName,
+  threadToken,
 }: ClientThreadViewProps) {
   const { messages: liveMessages, ticket: liveTicket } = useThreadSSE(
     initialTicket,
@@ -47,6 +50,7 @@ export function ClientThreadView({
           messages={liveMessages}
           currentRole="client"
           primaryColor={tenant.theme.primaryColor}
+          threadToken={threadToken}
         />
       </div>
 
@@ -83,6 +87,7 @@ export function ClientThreadView({
         tenantSlug={tenantSlug}
         primaryColor={tenant.theme.primaryColor}
         disabled={!isActive}
+        threadToken={threadToken}
       />
     </div>
   );

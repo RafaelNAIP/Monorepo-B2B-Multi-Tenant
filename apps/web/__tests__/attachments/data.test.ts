@@ -40,10 +40,10 @@ describe("createAttachment", () => {
     expect(arg.data.fileKey).toBe("k");
   });
 
-  it("não envia ticketId quando o chamado ainda não existe", async () => {
+  it("envia ticketId como null quando o chamado ainda não existe", async () => {
     prismaMock.attachment.create.mockResolvedValue({ id: "1" });
     await createAttachment({ tenantId: TENANT_A, fileKey: "k", fileName: "a", fileSize: 1, mimeType: "image/png" });
-    expect(prismaMock.attachment.create.mock.calls[0][0].data.ticketId).toBeUndefined();
+    expect(prismaMock.attachment.create.mock.calls[0][0].data.ticketId).toBeNull();
   });
 });
 

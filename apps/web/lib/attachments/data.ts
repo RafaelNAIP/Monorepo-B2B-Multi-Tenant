@@ -22,7 +22,7 @@ export async function createAttachment(input: {
   return prisma.attachment.create({
     data: {
       tenantId: input.tenantId,
-      ...(input.ticketId ? { ticketId: input.ticketId } : {}),
+      ticketId: input.ticketId ?? null,
       fileKey: input.fileKey,
       fileName: input.fileName,
       fileSize: input.fileSize,

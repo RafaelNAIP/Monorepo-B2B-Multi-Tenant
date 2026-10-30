@@ -94,7 +94,7 @@ export function FileUploader({
         className="block w-full text-sm text-[var(--color-foreground)] file:mr-3 file:rounded-md file:border file:border-[var(--color-border)] file:bg-[var(--color-background)] file:px-3 file:py-1.5 file:text-sm disabled:cursor-not-allowed disabled:opacity-50"
       />
       <p id={`${inputId}-help`} className="text-xs text-[var(--color-muted-foreground)]">
-        Até {MAX_FILES_PER_UPLOAD} arquivos de 10 MB: .pdf, .png, .jpg, .jpeg, .docx
+        Até {MAX_FILES_PER_UPLOAD} imagens de 10 MB: .png, .jpg, .jpeg, .webp
       </p>
 
       {uploading && (

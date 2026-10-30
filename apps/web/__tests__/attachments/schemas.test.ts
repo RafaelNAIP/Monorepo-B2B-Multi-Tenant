@@ -52,10 +52,17 @@ describe("presignRequestSchema", () => {
   it.each([
     "image/png",
     "image/jpeg",
-    "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/webp",
   ])("aceita o mime type %s", (type) => {
     expect(presignRequestSchema.safeParse({ files: [{ ...validFile, type }] }).success).toBe(true);
+  });
+
+  it.each([
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ])("rejeita o mime type %s (apenas imagens permitidas)", (type) => {
+    const r = presignRequestSchema.safeParse({ files: [{ ...validFile, type }] });
+    expect(r.success).toBe(false);
   });
 
   it("rejeita nome vazio e nome acima de 255 caracteres", () => {

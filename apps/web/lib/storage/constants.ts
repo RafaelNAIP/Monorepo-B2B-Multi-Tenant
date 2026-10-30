@@ -6,12 +6,11 @@ export const PRESIGN_UPLOAD_EXPIRY = 600;
 /** Presigned URL de download expira em 1 hora */
 export const PRESIGN_DOWNLOAD_EXPIRY = 3600;
 
-/** Mime types permitidos e a extensão usada na chave do bucket */
+/** Mime types permitidos e a extensão usada na chave do bucket (apenas imagens) */
 export const ALLOWED_MIME_TYPES = {
   "image/png": "png",
   "image/jpeg": "jpg",
-  "application/pdf": "pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "image/webp": "webp",
 } as const;
 
 export type AllowedMimeType = keyof typeof ALLOWED_MIME_TYPES;

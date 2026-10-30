@@ -12,6 +12,11 @@ vi.mock("@/lib/storage/presign", () => ({
   getPresignedDownloadUrl: (...args: unknown[]) => presignDownloadMock(...args),
 }));
 
+const isR2ConfiguredMock = vi.fn(() => true);
+vi.mock("@/lib/storage/client", () => ({
+  isR2Configured: () => isR2ConfiguredMock(),
+}));
+
 import { GET } from "@/app/api/upload/download/[...fileKey]/route";
 
 const TENANT_A = "507f1f77bcf86cd799439011";
@@ -49,7 +54,20 @@ beforeEach(() => {
   resetPrismaMocks();
   getSessionMock.mockReset();
   presignDownloadMock.mockReset();
+  isR2ConfiguredMock.mockReset();
+  isR2ConfiguredMock.mockReturnValue(true);
   presignDownloadMock.mockResolvedValue("https://r2.test/signed-download");
+});
+
+describe("GET /api/upload/download — R2 não configurado", () => {
+  it("retorna 503 quando o R2 não está configurado", async () => {
+    isR2ConfiguredMock.mockReturnValue(false);
+    const res = await get(KEY_A);
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.error).toContain("armazenamento não configurado");
+    expect(presignDownloadMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("GET /api/upload/download — autenticação", () => {

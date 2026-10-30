@@ -6,15 +6,33 @@ import {
   isImageMime,
   uploadFiles,
   validateSelection,
+  type UploadProgress,
 } from "@/lib/attachments/client";
 
 const file = (name: string, type: string, size: number) =>
   ({ name, type, size }) as File;
 
 describe("validateSelection", () => {
-  it("aceita arquivos permitidos dentro dos limites", () => {
-    const r = validateSelection(0, [file("a.png", "image/png", 100), file("b.pdf", "application/pdf", 200)]);
-    expect(r.accepted.map((f) => f.name)).toEqual(["a.png", "b.pdf"]);
+  it("aceita apenas imagens dentro dos limites", () => {
+    const r = validateSelection(0, [file("a.png", "image/png", 100), file("b.jpg", "image/jpeg", 200)]);
+    expect(r.accepted.map((f) => f.name)).toEqual(["a.png", "b.jpg"]);
+    expect(r.errors).toEqual([]);
+  });
+
+  it("rejeita pdf e docx como tipos não suportados", () => {
+    const r = validateSelection(0, [
+      file("doc.pdf", "application/pdf", 100),
+      file("doc.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 100),
+    ]);
+    expect(r.accepted).toEqual([]);
+    expect(r.errors).toHaveLength(2);
+    expect(r.errors[0]).toContain("tipo de arquivo não suportado");
+    expect(r.errors[1]).toContain("tipo de arquivo não suportado");
+  });
+
+  it("aceita webp como imagem válida", () => {
+    const r = validateSelection(0, [file("foto.webp", "image/webp", 100)]);
+    expect(r.accepted.map((f) => f.name)).toEqual(["foto.webp"]);
     expect(r.errors).toEqual([]);
   });
 
@@ -52,7 +70,7 @@ describe("validateSelection", () => {
 
 describe("uploadFiles", () => {
   const png = new File([new Uint8Array(4)], "print.png", { type: "image/png" });
-  const pdf = new File([new Uint8Array(8)], "nota.pdf", { type: "application/pdf" });
+  const jpg = new File([new Uint8Array(8)], "foto.jpg", { type: "image/jpeg" });
 
   function fakeFetch(handlers: { presign?: () => Response; put?: (url: string) => Response }) {
     return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -61,7 +79,7 @@ describe("uploadFiles", () => {
         return handlers.presign?.() ?? Response.json({
           uploads: [
             { fileKey: "t/novo/1.png", uploadUrl: "https://r2.test/1", name: "print.png", expiresIn: 600 },
-            { fileKey: "t/novo/2.pdf", uploadUrl: "https://r2.test/2", name: "nota.pdf", expiresIn: 600 },
+            { fileKey: "t/novo/2.jpg", uploadUrl: "https://r2.test/2", name: "foto.jpg", expiresIn: 600 },
           ],
         });
       }
@@ -69,16 +87,16 @@ describe("uploadFiles", () => {
     });
   }
 
-  it("envia metadados ao presign e faz PUT de cada arquivo com seu Content-Type", async () => {
+  it("envia metadados ao presign e faz PUT de cada imagem com seu Content-Type", async () => {
     const fetchImpl = fakeFetch({});
-    const result = await uploadFiles([png, pdf], { fetchImpl: fetchImpl as unknown as typeof fetch });
+    const result = await uploadFiles([png, jpg], { fetchImpl: fetchImpl as unknown as typeof fetch });
 
     const [presignUrl, presignInit] = fetchImpl.mock.calls[0];
     expect(presignUrl).toBe("/api/upload/presign");
     expect(JSON.parse(presignInit!.body as string)).toEqual({
       files: [
         { name: "print.png", type: "image/png", size: 4 },
-        { name: "nota.pdf", type: "application/pdf", size: 8 },
+        { name: "foto.jpg", type: "image/jpeg", size: 8 },
       ],
     });
 
@@ -86,13 +104,13 @@ describe("uploadFiles", () => {
     expect(puts.map(([u]) => u).sort()).toEqual(["https://r2.test/1", "https://r2.test/2"]);
     for (const [url, init] of puts) {
       expect(init!.method).toBe("PUT");
-      const expected = url === "https://r2.test/1" ? "image/png" : "application/pdf";
+      const expected = url === "https://r2.test/1" ? "image/png" : "image/jpeg";
       expect((init!.headers as Record<string, string>)["Content-Type"]).toBe(expected);
     }
 
     expect(result).toEqual([
       { fileKey: "t/novo/1.png", name: "print.png", size: 4, type: "image/png" },
-      { fileKey: "t/novo/2.pdf", name: "nota.pdf", size: 8, type: "application/pdf" },
+      { fileKey: "t/novo/2.jpg", name: "foto.jpg", size: 8, type: "image/jpeg" },
     ]);
   });
 
@@ -124,8 +142,8 @@ describe("uploadFiles", () => {
 
   it("lança erro identificando o arquivo quando o PUT no R2 falha", async () => {
     const fetchImpl = fakeFetch({ put: (url) => new Response(null, { status: url.endsWith("/2") ? 403 : 200 }) });
-    await expect(uploadFiles([png, pdf], { fetchImpl: fetchImpl as unknown as typeof fetch })).rejects.toThrow(
-      'Falha ao enviar "nota.pdf"'
+    await expect(uploadFiles([png, jpg], { fetchImpl: fetchImpl as unknown as typeof fetch })).rejects.toThrow(
+      'Falha ao enviar "foto.jpg"'
     );
   });
 
@@ -136,6 +154,65 @@ describe("uploadFiles", () => {
     await expect(uploadFiles([png], { fetchImpl: fetchImpl as unknown as typeof fetch })).rejects.toThrow(
       "Não foi possível enviar os arquivos. Verifique sua conexão."
     );
+  });
+
+  it("chama onProgress com status uploading e done para cada arquivo", async () => {
+    const updates: UploadProgress[] = [];
+    const fetchImpl = fakeFetch({});
+    await uploadFiles([png, jpg], {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      onProgress: (u) => updates.push({ ...u }),
+    });
+    expect(updates).toEqual([
+      { index: 0, progress: 0, status: "uploading" },
+      { index: 1, progress: 0, status: "uploading" },
+      { index: 0, progress: 1, status: "done" },
+      { index: 1, progress: 1, status: "done" },
+    ]);
+  });
+
+  it("chama onProgress com status error quando o PUT falha", async () => {
+    const updates: UploadProgress[] = [];
+    const fetchImpl = fakeFetch({ put: () => new Response(null, { status: 403 }) });
+    await expect(
+      uploadFiles([png], {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        onProgress: (u) => updates.push({ ...u }),
+      })
+    ).rejects.toThrow();
+    expect(updates.some((u) => u.status === "error")).toBe(true);
+  });
+
+  it("aborta o upload quando o signal é cancelado antes do PUT", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      uploadFiles([png], {
+        fetchImpl: vi.fn() as unknown as typeof fetch,
+        signal: controller.signal,
+      })
+    ).rejects.toThrow("Upload cancelado");
+  });
+
+  it("lança 'Upload cancelado' quando o signal aborta durante fetch", async () => {
+    const controller = new AbortController();
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.signal) {
+        // Simula a resposta do presign
+        if (String(_url) === "/api/upload/presign") {
+          return Response.json({
+            uploads: [{ fileKey: "t/novo/1.png", uploadUrl: "https://r2.test/1", name: "print.png", expiresIn: 600 }],
+          });
+        }
+        // Simula abort durante PUT
+        controller.abort();
+        throw new DOMException("The operation was aborted", "AbortError");
+      }
+      return new Response(null, { status: 200 });
+    });
+    await expect(
+      uploadFiles([png], { fetchImpl: fetchImpl as unknown as typeof fetch, signal: controller.signal })
+    ).rejects.toThrow("Upload cancelado");
   });
 });
 

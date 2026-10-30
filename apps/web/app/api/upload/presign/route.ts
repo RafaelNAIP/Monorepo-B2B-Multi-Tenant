@@ -1,6 +1,7 @@
 import { createAttachment } from "@/lib/attachments/data";
 import { resolveUploadActor, ticketBelongsToTenant } from "@/lib/attachments/access";
 import { presignRequestSchema } from "@/lib/attachments/schemas";
+import { getMissingR2Vars } from "@/lib/storage/client";
 import { PRESIGN_UPLOAD_EXPIRY } from "@/lib/storage/constants";
 import { buildFileKey } from "@/lib/storage/keys";
 import { getPresignedUploadUrl } from "@/lib/storage/presign";
@@ -11,6 +12,11 @@ function json(body: unknown, status: number) {
 
 /** Gera presigned URLs de upload e registra os anexos como pending */
 export async function POST(request: Request) {
+  const missing = getMissingR2Vars();
+  if (missing.length > 0) {
+    return json({ error: `Upload indisponível: variáveis do R2 não configuradas (${missing.join(", ")})` }, 503);
+  }
+
   let body: unknown;
   try {
     body = await request.json();

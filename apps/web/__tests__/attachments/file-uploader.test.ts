@@ -23,11 +23,13 @@ function setup(upload = vi.fn(async (files: File[]): Promise<UploadedFile[]> =>
 }
 
 describe("FileUploader", () => {
-  it("restringe o seletor aos tipos permitidos e permite múltiplos arquivos", () => {
+  it("restringe o seletor apenas a imagens e permite múltiplos arquivos", () => {
     const { input } = setup();
     expect(input.multiple).toBe(true);
     expect(input.accept).toContain("image/png");
-    expect(input.accept).toContain("application/pdf");
+    expect(input.accept).toContain("image/jpeg");
+    expect(input.accept).toContain("image/webp");
+    expect(input.accept).not.toContain("application/pdf");
   });
 
   it("começa com o campo oculto attachmentKeys vazio", () => {

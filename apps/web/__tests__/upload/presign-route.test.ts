@@ -12,6 +12,12 @@ vi.mock("@/lib/storage/presign", () => ({
   getPresignedUploadUrl: (...args: unknown[]) => presignMock(...args),
 }));
 
+const getMissingR2VarsMock = vi.fn<() => string[]>(() => []);
+vi.mock("@/lib/storage/client", () => ({
+  getMissingR2Vars: () => getMissingR2VarsMock(),
+  isR2Configured: () => getMissingR2VarsMock().length === 0,
+}));
+
 import { POST } from "@/app/api/upload/presign/route";
 
 const TENANT_A = "507f1f77bcf86cd799439011";
@@ -43,8 +49,22 @@ beforeEach(() => {
   resetPrismaMocks();
   getSessionMock.mockReset();
   presignMock.mockReset();
+  getMissingR2VarsMock.mockReset();
+  getMissingR2VarsMock.mockReturnValue([]);
   presignMock.mockImplementation(async ({ fileKey }: { fileKey: string }) => `https://r2.test/${fileKey}?sig=x`);
   prismaMock.attachment.create.mockImplementation(async ({ data }: { data: object }) => ({ id: "a1", ...data }));
+});
+
+describe("POST /api/upload/presign — R2 não configurado", () => {
+  it("retorna 503 listando as variáveis ausentes", async () => {
+    getMissingR2VarsMock.mockReturnValue(["R2_ENDPOINT", "R2_BUCKET_NAME"]);
+    const res = await post({ files: [png] });
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.error).toContain("R2_ENDPOINT");
+    expect(body.error).toContain("R2_BUCKET_NAME");
+    expect(presignMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST /api/upload/presign — autenticação", () => {
@@ -104,12 +124,12 @@ describe("POST /api/upload/presign — chamado novo (sessão)", () => {
   });
 
   it("cria um Attachment pending por arquivo, com metadados do arquivo", async () => {
-    const pdf = { name: "nota.pdf", type: "application/pdf", size: 5000 };
-    await post({ files: [png, pdf] });
+    const jpg = { name: "foto.jpg", type: "image/jpeg", size: 5000 };
+    await post({ files: [png, jpg] });
     expect(prismaMock.attachment.create).toHaveBeenCalledTimes(2);
     const [a, b] = prismaMock.attachment.create.mock.calls.map((c) => c[0].data);
     expect(a).toMatchObject({ fileName: "print.png", mimeType: "image/png", fileSize: 2048, status: "pending" });
-    expect(b).toMatchObject({ fileName: "nota.pdf", mimeType: "application/pdf", fileSize: 5000, status: "pending" });
+    expect(b).toMatchObject({ fileName: "foto.jpg", mimeType: "image/jpeg", fileSize: 5000, status: "pending" });
     expect(a.fileKey).not.toBe(b.fileKey);
   });
 

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 
 import { Button, Input, Label } from "@empresa/ui";
 
-import { FileUploader } from "@/components/shared/file-uploader";
+import { ImageUploadModal } from "@/components/shared/image-upload-modal";
+import type { UploadedFile } from "@/lib/attachments/client";
 
 import { createTicketAction } from "@/lib/tickets/actions";
 import { INITIAL_ACTION_STATE } from "@/lib/shared/action-state";
@@ -28,7 +29,8 @@ export function CreateTicketForm({
     INITIAL_ACTION_STATE
   );
   const [category, setCategory] = useState("");
-  const [uploading, setUploading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<UploadedFile[]>([]);
 
   // Redirect on success
   useEffect(() => {
@@ -135,7 +137,46 @@ export function CreateTicketForm({
 
       {/* Attachments */}
       <div className="space-y-2">
-        <FileUploader onUploadingChange={setUploading} />
+        <input
+          type="hidden"
+          name="attachmentKeys"
+          value={attachedFiles.map((f) => f.fileKey).join(",")}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setModalOpen(true)}
+        >
+          📎 Anexar imagens{attachedFiles.length > 0 ? ` (${attachedFiles.length})` : ""}
+        </Button>
+        {attachedFiles.length > 0 && (
+          <ul className="mt-2 space-y-1 text-sm text-[var(--color-muted-foreground)]">
+            {attachedFiles.map((f) => (
+              <li key={f.fileKey} className="flex items-center gap-2">
+                <span className="truncate">{f.name}</span>
+                <button
+                  type="button"
+                  className="text-xs text-[var(--color-destructive)] hover:underline"
+                  onClick={() =>
+                    setAttachedFiles((prev) =>
+                      prev.filter((p) => p.fileKey !== f.fileKey)
+                    )
+                  }
+                >
+                  Remover
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <ImageUploadModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onConfirm={(files) => {
+            setAttachedFiles((prev) => [...prev, ...files]);
+            setModalOpen(false);
+          }}
+        />
         {state.fieldErrors.attachmentKeys && (
           <p role="alert" className="text-sm text-[var(--color-destructive)]">
             {state.fieldErrors.attachmentKeys[0]}
@@ -145,8 +186,8 @@ export function CreateTicketForm({
 
       {/* Actions */}
       <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" disabled={isPending || uploading}>
-          {isPending ? "Criando..." : uploading ? "Enviando anexos..." : "Criar Chamado"}
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "Criando..." : "Criar Chamado"}
         </Button>
         <Button
           type="button"

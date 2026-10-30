@@ -12,18 +12,15 @@ describe("buildFileKey", () => {
   });
 
   it("usa o segmento 'novo' quando o chamado ainda não existe", () => {
-    const key = buildFileKey({ tenantId: TENANT, mimeType: "application/pdf" });
-    expect(key).toMatch(new RegExp(`^${TENANT}/novo/[0-9a-f-]{36}\\.pdf$`));
+    const key = buildFileKey({ tenantId: TENANT, mimeType: "image/jpeg" });
+    expect(key).toMatch(new RegExp(`^${TENANT}/novo/[0-9a-f-]{36}\\.jpg$`));
   });
 
-  it("deriva a extensão do mime type e não do nome do arquivo", () => {
+  it("deriva a extensão do mime type", () => {
     const jpeg = buildFileKey({ tenantId: TENANT, mimeType: "image/jpeg" });
-    const docx = buildFileKey({
-      tenantId: TENANT,
-      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    });
+    const webp = buildFileKey({ tenantId: TENANT, mimeType: "image/webp" });
     expect(jpeg.endsWith(".jpg")).toBe(true);
-    expect(docx.endsWith(".docx")).toBe(true);
+    expect(webp.endsWith(".webp")).toBe(true);
   });
 
   it("gera chaves diferentes a cada chamada", () => {

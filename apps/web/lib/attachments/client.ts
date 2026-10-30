@@ -46,14 +46,35 @@ interface PresignResponse {
 
 const NETWORK_ERROR = "Não foi possível enviar os arquivos. Verifique sua conexão.";
 
+export interface UploadProgress {
+  /** Índice do arquivo na lista original */
+  index: number;
+  /** 0 a 1 (1 = concluído) */
+  progress: number;
+  status: "uploading" | "done" | "error" | "cancelled";
+}
+
+export interface UploadOptions {
+  ticketId?: string;
+  threadToken?: string;
+  fetchImpl?: typeof fetch;
+  /** Chamado para cada atualização de progresso individual */
+  onProgress?: (update: UploadProgress) => void;
+  /** Permite cancelar uploads em andamento */
+  signal?: AbortSignal;
+}
+
 /** Pede as URLs assinadas e envia cada arquivo direto ao R2. Retorna as keys na ordem recebida. */
 export async function uploadFiles(
   files: File[],
-  options: { ticketId?: string; threadToken?: string; fetchImpl?: typeof fetch } = {}
+  options: UploadOptions = {}
 ): Promise<UploadedFile[]> {
   const doFetch = options.fetchImpl ?? fetch;
+  const { onProgress, signal } = options;
 
   try {
+    if (signal?.aborted) throw new UploadError("Upload cancelado");
+
     const presignRes = await doFetch("/api/upload/presign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -62,6 +83,7 @@ export async function uploadFiles(
         ...(options.ticketId ? { ticketId: options.ticketId } : {}),
         ...(options.threadToken ? { threadToken: options.threadToken } : {}),
       }),
+      signal,
     });
 
     const payload = (await presignRes.json().catch(() => ({}))) as PresignResponse;
@@ -73,14 +95,39 @@ export async function uploadFiles(
     await Promise.all(
       payload.uploads.map(async (upload, index) => {
         const file = files[index];
-        const putRes = await doFetch(upload.uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": file.type },
-          body: file,
-        });
-        if (!putRes.ok) throw new UploadError(`Falha ao enviar "${file.name}"`);
+        try {
+          if (signal?.aborted) {
+            onProgress?.({ index, progress: 0, status: "cancelled" });
+            return;
+          }
+
+          onProgress?.({ index, progress: 0, status: "uploading" });
+
+          const putRes = await doFetch(upload.uploadUrl, {
+            method: "PUT",
+            headers: { "Content-Type": file.type },
+            body: file,
+            signal,
+          });
+
+          if (!putRes.ok) {
+            onProgress?.({ index, progress: 0, status: "error" });
+            throw new UploadError(`Falha ao enviar "${file.name}"`);
+          }
+
+          onProgress?.({ index, progress: 1, status: "done" });
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            onProgress?.({ index, progress: 0, status: "cancelled" });
+            throw new UploadError("Upload cancelado");
+          }
+          onProgress?.({ index, progress: 0, status: "error" });
+          throw error;
+        }
       })
     );
+
+    if (signal?.aborted) throw new UploadError("Upload cancelado");
 
     return payload.uploads.map((upload, index) => ({
       fileKey: upload.fileKey,
@@ -90,6 +137,9 @@ export async function uploadFiles(
     }));
   } catch (error) {
     if (error instanceof UploadError) throw error;
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new UploadError("Upload cancelado");
+    }
     throw new UploadError(NETWORK_ERROR);
   }
 }

@@ -1,5 +1,6 @@
 import { resolveUploadActor } from "@/lib/attachments/access";
 import { getAttachmentByKey } from "@/lib/attachments/data";
+import { isR2Configured } from "@/lib/storage/client";
 import { getTenantIdFromKey } from "@/lib/storage/keys";
 import { getPresignedDownloadUrl } from "@/lib/storage/presign";
 
@@ -12,6 +13,13 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ fileKey: string[] }> }
 ) {
+  if (!isR2Configured()) {
+    return Response.json(
+      { error: "Download indisponível: armazenamento não configurado" },
+      { status: 503, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   const token = new URL(request.url).searchParams.get("token");
   const actor = await resolveUploadActor(token);
   if (!actor) {

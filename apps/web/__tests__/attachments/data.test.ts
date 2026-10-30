@@ -114,6 +114,27 @@ describe("attachToMessage", () => {
     expect(updateArg.where).toEqual({ id: { in: ["A1"] } });
     expect(updateArg.data).toEqual({ messageId: "M1", ticketId: "T1", status: "completed" });
   });
+
+  it("aceita anexo que já possui o ticketId do chamado (upload feito na thread)", async () => {
+    prismaMock.attachment.findMany.mockResolvedValue([
+      { id: "A1", fileKey: "k1", tenantId: TENANT_A, status: "pending", ticketId: "T1", messageId: null },
+    ]);
+    prismaMock.attachment.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await attachToMessage({ keys: ["k1"], messageId: "M1", ticketId: "T1", tenantId: TENANT_A });
+    expect(result).toBe(1);
+    expect(prismaMock.attachment.updateMany.mock.calls[0][0].where).toEqual({ id: { in: ["A1"] } });
+  });
+
+  it("rejeita anexo que pertence a outro chamado", async () => {
+    prismaMock.attachment.findMany.mockResolvedValue([
+      { id: "A1", fileKey: "k1", tenantId: TENANT_A, status: "pending", ticketId: "OUTRO", messageId: null },
+    ]);
+
+    const result = await attachToMessage({ keys: ["k1"], messageId: "M1", ticketId: "T1", tenantId: TENANT_A });
+    expect(result).toBe(0);
+    expect(prismaMock.attachment.updateMany).not.toHaveBeenCalled();
+  });
 });
 
 describe("getAttachmentsByTicket", () => {

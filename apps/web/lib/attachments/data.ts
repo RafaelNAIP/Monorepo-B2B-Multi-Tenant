@@ -78,7 +78,8 @@ export async function attachToMessage(
       status: "pending",
     },
   });
-  const eligible = candidates.filter((a) => !a.ticketId && !a.messageId);
+  // Aceita anexos sem dono OU já associados ao mesmo chamado (upload feito na thread)
+  const eligible = candidates.filter((a) => !a.messageId && (!a.ticketId || a.ticketId === input.ticketId));
 
   if (eligible.length === 0) return 0;
 

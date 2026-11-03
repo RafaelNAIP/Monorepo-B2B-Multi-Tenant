@@ -2,7 +2,12 @@ import { z } from "zod";
 
 import { attachmentKeysSchema } from "@/lib/attachments/schemas";
 
-import { TICKET_CATEGORIES } from "./constants";
+import { TICKET_CATEGORIES, TICKET_STATUS, type TicketStatus } from "./constants";
+
+const TICKET_STATUS_VALUES = Object.keys(TICKET_STATUS) as [
+  TicketStatus,
+  ...TicketStatus[],
+];
 
 export const createTicketSchema = z.object({
   title: z
@@ -21,9 +26,10 @@ export const createTicketSchema = z.object({
   attachmentKeys: attachmentKeysSchema.optional(),
 });
 
+// Filtros vêm da URL (searchParams): valor inválido vira "sem filtro" em vez de erro.
 export const ticketFilterSchema = z.object({
-  status: z.enum(["open", "in_progress", "resolved"]).optional(),
-  search: z.string().optional(),
+  status: z.enum(TICKET_STATUS_VALUES).optional().catch(undefined),
+  search: z.string().optional().catch(undefined),
 });
 
 export const assignTicketSchema = z.object({

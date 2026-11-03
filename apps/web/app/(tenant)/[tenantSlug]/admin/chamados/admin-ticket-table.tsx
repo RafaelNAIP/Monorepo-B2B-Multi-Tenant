@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useActionState } from "react";
+import { useActionState } from "react";
 import Link from "next/link";
 
 import {
@@ -17,6 +17,7 @@ import {
 
 import type { Ticket } from "@/lib/tickets/types";
 import { FilterSelect } from "@/components/filter-select";
+import { useTicketFilters } from "@/hooks/use-ticket-filters";
 import { TICKET_STATUS, TICKET_PRIORITY } from "@/lib/tickets/constants";
 import type { TicketStatus, TicketPriority } from "@/lib/tickets/constants";
 import {
@@ -25,10 +26,13 @@ import {
 } from "@/lib/tickets/actions";
 
 interface AdminTicketTableProps {
+  /** Página já filtrada e paginada pelo servidor */
   tickets: Ticket[];
   assignedNames: Record<string, string>;
   adminUserId: string;
   tenantSlug: string;
+  initialStatus?: TicketStatus;
+  initialSearch?: string;
 }
 
 const ALL_STATUS = "all";
@@ -43,30 +47,19 @@ export function AdminTicketTable({
   assignedNames,
   adminUserId,
   tenantSlug,
+  initialStatus,
+  initialSearch,
 }: AdminTicketTableProps) {
-  const [searchText, setSearchText] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUS);
+  const { status, changeStatus, search, changeSearch } = useTicketFilters({
+    initialStatus,
+    initialSearch,
+    allValue: ALL_STATUS,
+  });
+  const hasFilters = Boolean(initialStatus || initialSearch);
   const [assignState, assignAction, isAssigning] = useActionState(
     assignTicketAction,
     assignInitialState
   );
-
-  const filteredTickets = useMemo(() => {
-    const normalizedSearch = searchText.toLowerCase().trim();
-
-    return tickets.filter((ticket) => {
-      const matchesText =
-        normalizedSearch === "" ||
-        ticket.title.toLowerCase().includes(normalizedSearch) ||
-        ticket.requester.toLowerCase().includes(normalizedSearch) ||
-        ticket.category.toLowerCase().includes(normalizedSearch);
-
-      const matchesStatus =
-        statusFilter === ALL_STATUS || ticket.status === statusFilter;
-
-      return matchesText && matchesStatus;
-    });
-  }, [tickets, searchText, statusFilter]);
 
   return (
     <div className="space-y-4">
@@ -95,14 +88,14 @@ export function AdminTicketTable({
           <Input
             type="search"
             placeholder="Buscar por título, solicitante ou categoria..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            value={search}
+            onChange={(e) => changeSearch(e.target.value)}
             aria-label="Buscar chamados"
           />
         </div>
         <FilterSelect
-          value={statusFilter}
-          onChange={setStatusFilter}
+          value={status}
+          onChange={changeStatus}
           ariaLabel="Filtrar por status"
           allValue={ALL_STATUS}
           allLabel="Todos os status"
@@ -111,11 +104,11 @@ export function AdminTicketTable({
       </div>
 
       {/* ── Tabela ── */}
-      {filteredTickets.length === 0 ? (
+      {tickets.length === 0 ? (
         <div className="rounded-lg border border-[var(--color-border)] p-8 text-center text-[var(--color-muted-foreground)]">
-          {tickets.length === 0
-            ? "Nenhum chamado encontrado para esta empresa."
-            : "Nenhum chamado encontrado com os filtros aplicados."}
+          {hasFilters
+            ? "Nenhum chamado encontrado com os filtros aplicados."
+            : "Nenhum chamado encontrado para esta empresa."}
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -132,7 +125,7 @@ export function AdminTicketTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTickets.map((ticket) => (
+              {tickets.map((ticket) => (
                 <TableRow key={ticket.id}>
                   <TableCell>
                     <div>
@@ -205,12 +198,6 @@ export function AdminTicketTable({
           </Table>
         </div>
       )}
-
-      <p className="text-xs text-[var(--color-muted-foreground)]">
-        {filteredTickets.length === tickets.length
-          ? `${tickets.length} chamado(s)`
-          : `${filteredTickets.length} de ${tickets.length} chamado(s)`}
-      </p>
     </div>
   );
 }

@@ -6,6 +6,7 @@ vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
 
 import {
   getTickets,
+  getTicketsPage,
   createTicket,
   getTicketById,
   assignTicket,
@@ -186,6 +187,168 @@ describe("data layer de tickets", () => {
         search: "xyztermoqueexisteemnenhum",
       });
       expect(tickets).toEqual([]);
+    });
+  });
+
+  // ─── getTicketsPage (paginação server-side) ─────────────────────
+
+  describe("getTicketsPage", () => {
+    /** Gera n chamados do tenant t_01 (ordem = ordem de retorno do banco). */
+    function seedTickets(n: number) {
+      return Array.from({ length: n }, (_, i) => ({
+        ...MOCK_TICKETS_T01[0],
+        id: `tkt_${String(i + 1).padStart(3, "0")}`,
+        code: `tkt_${String(i + 1).padStart(3, "0")}`,
+        title: `Chamado ${i + 1}`,
+        tenantId: "t_01",
+      }));
+    }
+
+    /** Simula o banco aplicando skip/take sobre a lista semeada. */
+    function mockDbWith(all: ReturnType<typeof seedTickets>) {
+      prismaMock.ticket.count.mockResolvedValue(all.length);
+      prismaMock.ticket.findMany.mockImplementation(
+        async ({ skip = 0, take = all.length }: { skip?: number; take?: number }) =>
+          all.slice(skip, skip + take)
+      );
+    }
+
+    const idsOf = (items: { id: string }[]) => items.map((t) => t.id);
+
+    it("retorna a primeira página com total e número de páginas", async () => {
+      mockDbWith(seedTickets(25));
+
+      const result = await getTicketsPage("t_01", { page: 1 });
+
+      expect(idsOf(result.items)).toEqual(
+        seedTickets(10).map((t) => t.id)
+      );
+      expect(result.total).toBe(25);
+      expect(result.totalPages).toBe(3);
+      expect(result.page).toBe(1);
+    });
+
+    it("retorna a página pedida, pulando os itens das páginas anteriores", async () => {
+      const all = seedTickets(25);
+      mockDbWith(all);
+
+      const result = await getTicketsPage("t_01", { page: 2 });
+
+      expect(idsOf(result.items)).toEqual(idsOf(all.slice(10, 20)));
+      expect(prismaMock.ticket.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 10, take: 10 })
+      );
+    });
+
+    it("leva para a última página quando a página pedida não existe", async () => {
+      const all = seedTickets(25);
+      mockDbWith(all);
+
+      const result = await getTicketsPage("t_01", { page: 9 });
+
+      expect(result.page).toBe(3);
+      expect(idsOf(result.items)).toEqual(idsOf(all.slice(20, 25)));
+    });
+
+    it("sem chamados retorna lista vazia, total 0 e página 1", async () => {
+      mockDbWith([]);
+
+      const result = await getTicketsPage("t_inexistente", { page: 1 });
+
+      expect(result).toEqual({ items: [], total: 0, page: 1, totalPages: 1 });
+    });
+
+    it("conta e busca com o mesmo filtro de tenant", async () => {
+      mockDbWith(seedTickets(3));
+
+      await getTicketsPage("t_01", { page: 1 });
+
+      expect(prismaMock.ticket.count).toHaveBeenCalledWith({
+        where: { tenantId: "t_01" },
+      });
+      expect(prismaMock.ticket.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tenantId: "t_01" } })
+      );
+    });
+
+    it("ordena por data de criação decrescente com desempate por id (paginação estável)", async () => {
+      mockDbWith(seedTickets(3));
+
+      await getTicketsPage("t_01", { page: 1 });
+
+      expect(prismaMock.ticket.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        })
+      );
+    });
+
+    it("aplica o filtro de status na contagem e na busca", async () => {
+      mockDbWith([]);
+
+      await getTicketsPage("t_01", { page: 1, status: "pending_feedback" });
+
+      const expectedWhere = { tenantId: "t_01", status: "pending_feedback" };
+      expect(prismaMock.ticket.count).toHaveBeenCalledWith({ where: expectedWhere });
+      expect(prismaMock.ticket.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere })
+      );
+    });
+
+    it("busca por título e solicitante, sem casar categoria por padrão", async () => {
+      mockDbWith([]);
+
+      await getTicketsPage("t_01", { page: 1, search: "Maria" });
+
+      expect(prismaMock.ticket.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            tenantId: "t_01",
+            OR: [
+              { title: { contains: "maria", mode: "insensitive" } },
+              { requester: { contains: "maria", mode: "insensitive" } },
+            ],
+          },
+        })
+      );
+    });
+
+    it("com searchCategory, casa o termo com o valor do enum de categoria", async () => {
+      mockDbWith([]);
+
+      await getTicketsPage("t_01", {
+        page: 1,
+        search: "suporte",
+        searchCategory: true,
+      });
+
+      const call = prismaMock.ticket.findMany.mock.calls[0][0];
+      expect(call.where.OR).toContainEqual({
+        category: { in: ["suporte_tecnico"] },
+      });
+    });
+
+    it("com searchCategory, termo que não casa nenhuma categoria não adiciona cláusula de categoria", async () => {
+      mockDbWith([]);
+
+      await getTicketsPage("t_01", {
+        page: 1,
+        search: "xyztermo",
+        searchCategory: true,
+      });
+
+      const call = prismaMock.ticket.findMany.mock.calls[0][0];
+      expect(call.where.OR).toHaveLength(2);
+    });
+
+    it("busca vazia ou só com espaços não gera cláusula OR", async () => {
+      mockDbWith([]);
+
+      await getTicketsPage("t_01", { page: 1, search: "   " });
+
+      expect(prismaMock.ticket.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tenantId: "t_01" } })
+      );
     });
   });
 

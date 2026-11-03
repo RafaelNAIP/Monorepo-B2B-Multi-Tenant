@@ -94,6 +94,24 @@ describe("ticketFilterSchema", () => {
     const result = ticketFilterSchema.safeParse({});
     expect(result.success).toBe(true);
   });
+
+  it("aceita todos os status do domínio (incluindo aguardando feedback e fechado)", () => {
+    for (const status of ["open", "in_progress", "pending_feedback", "resolved", "closed"]) {
+      const result = ticketFilterSchema.parse({ status });
+      expect(result.status).toBe(status);
+    }
+  });
+
+  it("ignora status inválido em vez de rejeitar (parâmetro vindo da URL)", () => {
+    const result = ticketFilterSchema.parse({ status: "todos", search: "erro" });
+    expect(result.status).toBeUndefined();
+    expect(result.search).toBe("erro");
+  });
+
+  it("ignora busca que não é texto", () => {
+    const result = ticketFilterSchema.parse({ search: 123 });
+    expect(result.search).toBeUndefined();
+  });
 });
 
 describe("assignTicketSchema", () => {

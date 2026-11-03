@@ -1,6 +1,12 @@
 import { prisma } from "@empresa/db";
 
 import { ATTACHMENTS_INVALID, attachToTicket } from "@/lib/attachments/data";
+import {
+  PAGE_SIZE,
+  clampPage,
+  pageWindow,
+  totalPagesFor,
+} from "@/lib/shared/pagination";
 import { notifyThread } from "@/lib/sse/thread-event-emitter";
 import type { TicketCategory, TicketStatus } from "./constants";
 
@@ -14,6 +20,8 @@ const CATEGORY_TO_ENUM: Record<string, string> = {
   "Comercial": "comercial",
 };
 
+const CATEGORY_ENUMS = Object.values(CATEGORY_TO_ENUM);
+
 function categoryToEnum(cat: string): string {
   return CATEGORY_TO_ENUM[cat] ?? cat;
 }
@@ -25,6 +33,41 @@ interface TicketFilters {
   search?: string;
 }
 
+/**
+ * Monta o where de listagem. Busca em título e solicitante; com
+ * `searchCategory`, também casa o termo com o valor do enum de categoria
+ * (mesmo comportamento que a busca client-side do painel admin tinha).
+ */
+function buildTicketWhere(
+  tenantId: string,
+  filters?: TicketFilters & { searchCategory?: boolean }
+) {
+  const where: Record<string, unknown> = { tenantId };
+
+  if (filters?.status) {
+    where.status = filters.status;
+  }
+
+  const term = filters?.search?.trim().toLowerCase() ?? "";
+  if (term !== "") {
+    const or: Record<string, unknown>[] = [
+      { title: { contains: term, mode: "insensitive" } },
+      { requester: { contains: term, mode: "insensitive" } },
+    ];
+
+    if (filters?.searchCategory) {
+      const categories = CATEGORY_ENUMS.filter((value) => value.includes(term));
+      if (categories.length > 0) {
+        or.push({ category: { in: categories } });
+      }
+    }
+
+    where.OR = or;
+  }
+
+  return where;
+}
+
 // ─── Public API ───────────────────────────────────────────────────
 
 const FEEDBACK_DEADLINE_HOURS = 24;
@@ -34,21 +77,36 @@ const FEEDBACK_DEADLINE_HOURS = 24;
  * Search is case-insensitive and matches against title and requester.
  */
 export async function getTickets(tenantId: string, filters?: TicketFilters) {
-  const where: Record<string, unknown> = { tenantId };
+  return prisma.ticket.findMany({ where: buildTicketWhere(tenantId, filters) });
+}
 
-  if (filters?.status) {
-    where.status = filters.status;
-  }
+export interface TicketPageOptions extends TicketFilters {
+  page: number;
+  searchCategory?: boolean;
+}
 
-  if (filters?.search && filters.search.trim() !== "") {
-    const term = filters.search.toLowerCase();
-    where.OR = [
-      { title: { contains: term, mode: "insensitive" } },
-      { requester: { contains: term, mode: "insensitive" } },
-    ];
-  }
+/**
+ * Página de chamados do tenant (paginação server-side).
+ * Conta o total com os mesmos filtros, limita a página ao intervalo existente
+ * e busca só os itens daquela página, ordenados do mais recente para o mais antigo.
+ */
+export async function getTicketsPage(
+  tenantId: string,
+  options: TicketPageOptions
+) {
+  const where = buildTicketWhere(tenantId, options);
 
-  return prisma.ticket.findMany({ where });
+  const total = await prisma.ticket.count({ where });
+  const totalPages = totalPagesFor(total, PAGE_SIZE);
+  const page = clampPage(options.page, totalPages);
+
+  const items = await prisma.ticket.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    ...pageWindow(page, PAGE_SIZE),
+  });
+
+  return { items, total, page, totalPages };
 }
 
 /** Returns a ticket by ID, or null if not found. */

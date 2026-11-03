@@ -9,7 +9,7 @@ import {
 
 import { createTicketSchema, assignTicketSchema } from "./schemas";
 import { createTicket, assignTicket, disconnectTicket } from "./data";
-import { notifyThread } from "@/lib/sse/thread-event-emitter";
+import { notifyThread } from "@/lib/sse/channel-singleton";
 import { ATTACHMENTS_INVALID } from "@/lib/attachments/data";
 import { ATTACHMENTS_INVALID_MESSAGE, parseAttachmentKeysField } from "@/lib/attachments/form";
 

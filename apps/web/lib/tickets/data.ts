@@ -7,7 +7,7 @@ import {
   pageWindow,
   totalPagesFor,
 } from "@/lib/shared/pagination";
-import { notifyThread } from "@/lib/sse/thread-event-emitter";
+import { notifyThread } from "@/lib/sse/channel-singleton";
 import type { TicketCategory, TicketStatus } from "./constants";
 
 // ─── Category mapping (Portuguese display → Prisma enum) ─────────

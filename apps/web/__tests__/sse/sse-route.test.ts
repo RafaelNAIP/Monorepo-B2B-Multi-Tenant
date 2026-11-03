@@ -1,11 +1,19 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 
+// Mock auth: todos os testes deste arquivo assumem acesso autorizado.
+vi.mock("../../lib/messages/actor", () => ({
+  resolveThreadActor: vi.fn().mockResolvedValue({
+    ok: true,
+    actor: { kind: "admin", userId: "test_user", tenantId: "test_tenant" },
+  }),
+}));
+
 import { GET } from "../../app/api/threads/[ticketId]/events/route";
 import { HEARTBEAT_INTERVAL_MS } from "../../lib/sse/constants";
-import { threadEventEmitter } from "../../lib/sse/thread-event-emitter";
+import { threadChannel } from "../../lib/sse/channel-singleton";
 
-// Usa o emitter real (validado na Fase 1), Request/Response/ReadableStream
-// nativos do Node e lê o stream de verdade. Nada do módulo sob teste é mockado.
+// Usa o canal real, Request/Response/ReadableStream nativos do Node e lê
+// o stream de verdade. O auth está mockado para focar no comportamento do stream.
 
 const decoder = new TextDecoder();
 
@@ -56,7 +64,7 @@ describe("GET /api/threads/[ticketId]/events", () => {
     const { next, controller } = await open("tkt_events");
     await next(); // connected
 
-    threadEventEmitter.emit("tkt_events", { type: "new_message", timestamp: 1700 });
+    threadChannel.publish("tkt_events", { type: "new_message", timestamp: 1700 });
     const chunk = await next();
 
     // Frame SSE válido: linhas "campo: valor" terminadas por linha em branco.
@@ -82,7 +90,7 @@ describe("GET /api/threads/[ticketId]/events", () => {
     await next();
 
     for (const type of ["ticket_updated", "thread_disconnected"] as const) {
-      threadEventEmitter.emit("tkt_types", { type, timestamp: 1 });
+      threadChannel.publish("tkt_types", { type, timestamp: 1 });
       expect(await next()).toContain(`event: ${type}\n`);
     }
     controller.abort();
@@ -92,8 +100,8 @@ describe("GET /api/threads/[ticketId]/events", () => {
     const { next, controller } = await open("tkt_mine");
     await next();
 
-    threadEventEmitter.emit("tkt_other", { type: "new_message", timestamp: 1 });
-    threadEventEmitter.emit("tkt_mine", { type: "ticket_updated", timestamp: 2 });
+    threadChannel.publish("tkt_other", { type: "new_message", timestamp: 1 });
+    threadChannel.publish("tkt_mine", { type: "ticket_updated", timestamp: 2 });
 
     const chunk = await next();
     expect(chunk).toContain('"ticketId":"tkt_mine"');
@@ -107,7 +115,7 @@ describe("GET /api/threads/[ticketId]/events", () => {
     await next();
 
     await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS - 1);
-    threadEventEmitter.emit("tkt_hb", { type: "new_message", timestamp: 1 });
+    threadChannel.publish("tkt_hb", { type: "new_message", timestamp: 1 });
     expect(await next()).toContain("event: new_message"); // nenhum heartbeat antes da hora
 
     await vi.advanceTimersByTimeAsync(1);
@@ -116,15 +124,15 @@ describe("GET /api/threads/[ticketId]/events", () => {
   });
 
   it("remove o subscriber e encerra o stream quando o cliente aborta", async () => {
-    const base = threadEventEmitter.getSubscriberCount("tkt_abort");
+    const base = threadChannel.subscriberCount("tkt_abort");
     const { next, controller } = await open("tkt_abort");
     await next();
-    expect(threadEventEmitter.getSubscriberCount("tkt_abort")).toBe(base + 1);
+    expect(threadChannel.subscriberCount("tkt_abort")).toBe(base + 1);
 
     controller.abort();
 
     expect(await next()).toBeNull();
-    expect(threadEventEmitter.getSubscriberCount("tkt_abort")).toBe(base);
+    expect(threadChannel.subscriberCount("tkt_abort")).toBe(base);
   });
 
   it("para o heartbeat depois que a conexão fecha", async () => {
@@ -141,11 +149,11 @@ describe("GET /api/threads/[ticketId]/events", () => {
   it("remove o subscriber quando o consumidor cancela a leitura", async () => {
     const { next, reader } = await open("tkt_cancel");
     await next();
-    expect(threadEventEmitter.getSubscriberCount("tkt_cancel")).toBe(1);
+    expect(threadChannel.subscriberCount("tkt_cancel")).toBe(1);
 
     await reader.cancel();
 
-    expect(threadEventEmitter.getSubscriberCount("tkt_cancel")).toBe(0);
+    expect(threadChannel.subscriberCount("tkt_cancel")).toBe(0);
   });
 
   it("não deixa subscriber órfão se o request já chegar abortado", async () => {
@@ -159,7 +167,7 @@ describe("GET /api/threads/[ticketId]/events", () => {
     const reader = response.body!.getReader();
     await reader.read().catch(() => {});
 
-    expect(threadEventEmitter.getSubscriberCount("tkt_preaborted")).toBe(0);
+    expect(threadChannel.subscriberCount("tkt_preaborted")).toBe(0);
   });
 
   it("emitir depois do fechamento não lança erro", async () => {
@@ -169,7 +177,7 @@ describe("GET /api/threads/[ticketId]/events", () => {
     await next();
 
     expect(() =>
-      threadEventEmitter.emit("tkt_after_close", { type: "new_message", timestamp: 1 })
+      threadChannel.publish("tkt_after_close", { type: "new_message", timestamp: 1 })
     ).not.toThrow();
   });
 });

@@ -1,7 +1,15 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 
+// Mock auth: integração foca no fluxo emitter → route → stream → client sync.
+vi.mock("../../lib/messages/actor", () => ({
+  resolveThreadActor: vi.fn().mockResolvedValue({
+    ok: true,
+    actor: { kind: "admin", userId: "test_user", tenantId: "test_tenant" },
+  }),
+}));
+
 import { createThreadSync, type ThreadSync } from "../../lib/sse/thread-sync";
-import { threadEventEmitter } from "../../lib/sse/thread-event-emitter";
+import { threadChannel } from "../../lib/sse/channel-singleton";
 import { RouteEventSource } from "./helpers/route-event-source";
 
 /**
@@ -24,7 +32,7 @@ function makeDb() {
     /** Equivale ao que sendMessageAction fará: persiste e emite. */
     send(ticketId: string, content: string) {
       rows.push({ id: rows.length + 1, ticketId, content });
-      threadEventEmitter.emit(ticketId, { type: "new_message", timestamp: Date.now() });
+      threadChannel.publish(ticketId, { type: "new_message", timestamp: Date.now() });
     },
     snapshotFor: (ticketId: string) => async () =>
       rows.filter((r) => r.ticketId === ticketId).map((r) => r.content),
@@ -107,16 +115,16 @@ describe("canal em tempo real (emitter + route + controlador)", () => {
 
   it("stop() libera a conexão no servidor (sem subscriber vazando)", async () => {
     const db = makeDb();
-    const before = threadEventEmitter.getSubscriberCount("tkt_e2e_4");
+    const before = threadChannel.subscriberCount("tkt_e2e_4");
     const client = connect("tkt_e2e_4", db.snapshotFor("tkt_e2e_4"));
     await vi.waitFor(() =>
-      expect(threadEventEmitter.getSubscriberCount("tkt_e2e_4")).toBe(before + 1)
+      expect(threadChannel.subscriberCount("tkt_e2e_4")).toBe(before + 1)
     );
 
     client.sync.stop();
 
     await vi.waitFor(() =>
-      expect(threadEventEmitter.getSubscriberCount("tkt_e2e_4")).toBe(before)
+      expect(threadChannel.subscriberCount("tkt_e2e_4")).toBe(before)
     );
   });
 
@@ -133,9 +141,9 @@ describe("canal em tempo real (emitter + route + controlador)", () => {
     running.push(sync);
     await vi.waitFor(() => expect(seen).toHaveLength(1));
 
-    threadEventEmitter.emit("tkt_e2e_5", { type: "ticket_updated", timestamp: 1 });
+    threadChannel.publish("tkt_e2e_5", { type: "ticket_updated", timestamp: 1 });
     await vi.waitFor(() => expect(seen).toHaveLength(2));
-    threadEventEmitter.emit("tkt_e2e_5", { type: "thread_disconnected", timestamp: 2 });
+    threadChannel.publish("tkt_e2e_5", { type: "thread_disconnected", timestamp: 2 });
     await vi.waitFor(() => expect(seen).toHaveLength(3));
   });
 

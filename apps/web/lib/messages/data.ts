@@ -61,6 +61,7 @@ export async function createThreadAccess(input: {
   tenantId: string;
   clientName: string;
   clientEmail: string;
+  expiresAt?: Date;
 }) {
   // Remove acesso anterior para o mesmo ticket (substitui)
   await prisma.threadAccess.deleteMany({
@@ -74,16 +75,35 @@ export async function createThreadAccess(input: {
       clientName: input.clientName,
       clientEmail: input.clientEmail,
       token: crypto.randomUUID(),
+      ...(input.expiresAt && { expiresAt: input.expiresAt }),
     },
   });
 }
 
-/** Busca um acesso de thread pelo token público */
+/** Busca um acesso de thread pelo token público.
+ *  Retorna `null` se expirado (`expiresAt` no passado) ou revogado (`revokedAt` preenchido). */
 export async function getThreadAccessByToken(token: string) {
-  return prisma.threadAccess.findFirst({ where: { token } });
+  const access = await prisma.threadAccess.findFirst({ where: { token } });
+  if (!access) return null;
+
+  // Revogado?
+  if (access.revokedAt) return null;
+
+  // Expirado?
+  if (access.expiresAt && access.expiresAt.getTime() < Date.now()) return null;
+
+  return access;
 }
 
 /** Busca um acesso de thread pelo ticketId */
 export async function getThreadAccessByTicket(ticketId: string) {
   return prisma.threadAccess.findFirst({ where: { ticketId } });
+}
+
+/** Revoga o token de acesso da thread (soft-delete). */
+export async function revokeThreadAccess(token: string) {
+  return prisma.threadAccess.update({
+    where: { token },
+    data: { revokedAt: new Date() },
+  });
 }

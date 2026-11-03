@@ -9,7 +9,7 @@ import {
   validationErrorState,
   type ActionState,
 } from "@/lib/shared/action-state";
-import { notifyThread } from "@/lib/sse/thread-event-emitter";
+import { notifyThread } from "@/lib/sse/channel-singleton";
 import { ATTACHMENTS_INVALID } from "@/lib/attachments/data";
 import { ATTACHMENTS_INVALID_MESSAGE, parseAttachmentKeysField } from "@/lib/attachments/form";
 import type { Message } from "./types";

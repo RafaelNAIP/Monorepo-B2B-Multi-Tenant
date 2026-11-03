@@ -82,6 +82,14 @@ export async function loginAction(
     }
 
     // 4. Verificar senha com bcrypt
+    //    Guard: usuários legados sem passwordHash são tratados como senha inválida
+    if (!user.passwordHash) {
+      return {
+        success: false,
+        error: "E-mail ou senha incorretos",
+      };
+    }
+
     const passwordValid = await verifyPassword(password, user.passwordHash);
     if (!passwordValid) {
       // Mesma mensagem genérica — não revelar se o email existe

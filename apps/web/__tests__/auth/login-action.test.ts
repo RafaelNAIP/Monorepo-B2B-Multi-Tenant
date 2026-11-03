@@ -141,6 +141,25 @@ describe("loginAction — verificação de senha", () => {
     expect(verifyPasswordMock).not.toHaveBeenCalled();
   });
 
+  it("retorna erro genérico quando usuário legado não tem passwordHash", async () => {
+    const legacyUser = { ...USER, passwordHash: undefined as unknown as string };
+    prismaMock.tenant.findUnique.mockResolvedValue(TENANT);
+    prismaMock.user.findFirst.mockResolvedValue(legacyUser);
+
+    const fd = makeFormData({
+      email: "admin@demo.com",
+      password: "senha@123",
+      tenantSlug: "demo",
+      role: "admin",
+    });
+
+    const result = await loginAction(INITIAL_STATE, fd);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("E-mail ou senha incorretos");
+    expect(verifyPasswordMock).not.toHaveBeenCalled();
+  });
+
   it("redireciona client para /dashboard", async () => {
     const clientUser = { ...USER, id: "507f1f77bcf86cd799439033", role: "client" as const };
     prismaMock.tenant.findUnique.mockResolvedValue(TENANT);

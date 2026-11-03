@@ -5,14 +5,17 @@ import { getSession } from "@empresa/auth";
 import { Button } from "@empresa/ui";
 import { logoutAction } from "@empresa/auth/actions";
 
-import { getTickets } from "@/lib/tickets/data";
+import { PaginationControls } from "@/components/shared/pagination-controls";
+import { getTicketsPage } from "@/lib/tickets/data";
+import { parseTicketListParams } from "@/lib/tickets/list-params";
 import { TicketList } from "./ticket-list";
 
 interface DashboardPageProps {
   params: Promise<{ tenantSlug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function DashboardPage({ params }: DashboardPageProps) {
+export default async function DashboardPage({ params, searchParams }: DashboardPageProps) {
   const { tenantSlug } = await params;
   const session = await getSession();
 
@@ -26,7 +29,8 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     redirect(`/${session.tenantSlug}/dashboard`);
   }
 
-  const tickets = await getTickets(session.tenantId);
+  const { page, status, search } = parseTicketListParams(await searchParams);
+  const result = await getTicketsPage(session.tenantId, { page, status, search });
 
   return (
     <main className="mx-auto max-w-6xl p-8">
@@ -54,8 +58,20 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
         </div>
       </header>
 
-      <section className="mt-8">
-        <TicketList tickets={tickets} tenantSlug={tenantSlug} />
+      <section className="mt-8 space-y-4">
+        <TicketList
+          tickets={result.items}
+          tenantSlug={tenantSlug}
+          initialStatus={status}
+          initialSearch={search ?? ""}
+        />
+        <PaginationControls
+          pathname={`/${tenantSlug}/dashboard`}
+          query={{ status, search }}
+          page={result.page}
+          totalPages={result.totalPages}
+          total={result.total}
+        />
       </section>
     </main>
   );

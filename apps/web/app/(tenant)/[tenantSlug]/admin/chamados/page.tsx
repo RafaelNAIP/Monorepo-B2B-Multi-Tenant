@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 
 import { getSession } from "@empresa/auth";
 
-import { getTickets } from "@/lib/tickets/data";
+import { PaginationControls } from "@/components/shared/pagination-controls";
+import { getTicketsPage } from "@/lib/tickets/data";
+import { parseTicketListParams } from "@/lib/tickets/list-params";
 import { getUserById } from "@/lib/users/data";
 
 import { AdminTicketTable } from "./admin-ticket-table";
@@ -14,10 +16,12 @@ export const metadata: Metadata = {
 
 interface ChamadosPageProps {
   params: Promise<{ tenantSlug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export default async function AdminChamadosPage({
   params,
+  searchParams,
 }: ChamadosPageProps) {
   const { tenantSlug } = await params;
   const session = await getSession();
@@ -26,11 +30,18 @@ export default async function AdminChamadosPage({
     redirect(`/${tenantSlug}/auth`);
   }
 
-  const tickets = await getTickets(session.tenantId);
+  const { page, status, search } = parseTicketListParams(await searchParams);
+  // Admin também busca por categoria (paridade com o comportamento anterior)
+  const result = await getTicketsPage(session.tenantId, {
+    page,
+    status,
+    search,
+    searchCategory: true,
+  });
 
-  // Resolve nomes dos admins atribuídos
+  // Resolve nomes dos admins atribuídos (só da página exibida)
   const assignedNames: Record<string, string> = {};
-  for (const ticket of tickets) {
+  for (const ticket of result.items) {
     if (ticket.assignedTo && !assignedNames[ticket.assignedTo]) {
       const user = await getUserById(ticket.assignedTo);
       if (user) {
@@ -49,10 +60,20 @@ export default async function AdminChamadosPage({
       </div>
 
       <AdminTicketTable
-        tickets={tickets}
+        tickets={result.items}
         assignedNames={assignedNames}
         adminUserId={session.sub}
         tenantSlug={tenantSlug}
+        initialStatus={status}
+        initialSearch={search ?? ""}
+      />
+
+      <PaginationControls
+        pathname={`/${tenantSlug}/admin/chamados`}
+        query={{ status, search }}
+        page={result.page}
+        totalPages={result.totalPages}
+        total={result.total}
       />
     </div>
   );

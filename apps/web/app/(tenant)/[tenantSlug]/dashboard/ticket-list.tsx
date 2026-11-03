@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 import {
   Badge,
   Input,
@@ -15,34 +13,25 @@ import {
 
 import type { Ticket } from "@/lib/tickets/types";
 import { FilterSelect } from "@/components/filter-select";
+import { useTicketFilters } from "@/hooks/use-ticket-filters";
 import { TICKET_STATUS, TICKET_PRIORITY } from "@/lib/tickets/constants";
+import type { TicketStatus } from "@/lib/tickets/constants";
 
 interface TicketListProps {
+  /** Página já filtrada e paginada pelo servidor */
   tickets: Ticket[];
   tenantSlug: string;
+  initialStatus?: TicketStatus;
+  initialSearch?: string;
 }
 
-export function TicketList({ tickets, tenantSlug }: TicketListProps) {
-  const [statusFilter, setStatusFilter] = useState<string>("todos");
-  const [searchText, setSearchText] = useState("");
+const ALL_STATUS = "todos";
 
-  const filteredTickets = tickets.filter((ticket) => {
-    // Status filter
-    if (statusFilter !== "todos" && ticket.status !== statusFilter) {
-      return false;
-    }
-
-    // Search filter (title and requester)
-    if (searchText.trim() !== "") {
-      const term = searchText.toLowerCase();
-      const matchTitle = ticket.title.toLowerCase().includes(term);
-      const matchRequester = ticket.requester.toLowerCase().includes(term);
-      if (!matchTitle && !matchRequester) {
-        return false;
-      }
-    }
-
-    return true;
+export function TicketList({ tickets, initialStatus, initialSearch }: TicketListProps) {
+  const { status, changeStatus, search, changeSearch } = useTicketFilters({
+    initialStatus,
+    initialSearch,
+    allValue: ALL_STATUS,
   });
 
   return (
@@ -50,10 +39,10 @@ export function TicketList({ tickets, tenantSlug }: TicketListProps) {
       {/* ── Filter bar ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <FilterSelect
-          value={statusFilter}
-          onChange={setStatusFilter}
+          value={status}
+          onChange={changeStatus}
           ariaLabel="Filtrar por status"
-          allValue="todos"
+          allValue={ALL_STATUS}
           allLabel="Todos os status"
           options={Object.entries(TICKET_STATUS)}
         />
@@ -62,14 +51,14 @@ export function TicketList({ tickets, tenantSlug }: TicketListProps) {
           <Input
             type="search"
             placeholder="Buscar por título ou solicitante..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            value={search}
+            onChange={(e) => changeSearch(e.target.value)}
           />
         </div>
       </div>
 
       {/* ── Ticket table ── */}
-      {filteredTickets.length === 0 ? (
+      {tickets.length === 0 ? (
         <div className="rounded-lg border border-[var(--color-border)] p-8 text-center text-[var(--color-muted-foreground)]">
           Nenhum chamado encontrado.
         </div>
@@ -85,7 +74,7 @@ export function TicketList({ tickets, tenantSlug }: TicketListProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTickets.map((ticket) => (
+            {tickets.map((ticket) => (
               <TableRow key={ticket.id}>
                 <TableCell className="font-mono text-xs text-[var(--color-muted-foreground)]">
                   {ticket.id}
@@ -107,10 +96,6 @@ export function TicketList({ tickets, tenantSlug }: TicketListProps) {
           </TableBody>
         </Table>
       )}
-
-      <p className="text-xs text-[var(--color-muted-foreground)]">
-        {filteredTickets.length} de {tickets.length} chamado(s)
-      </p>
     </div>
   );
 }

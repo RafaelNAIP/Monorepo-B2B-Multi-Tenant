@@ -4,7 +4,7 @@ import { loginSchema } from "../../../../packages/auth/src/schemas/auth.schema";
 
 const base = {
   email: "admin@demo.com",
-  password: "senha123",
+  password: "senha@123",
   tenantSlug: "demo",
 };
 

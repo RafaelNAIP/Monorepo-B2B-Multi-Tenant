@@ -1,9 +1,17 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "@empresa/auth";
 
 const prisma = new PrismaClient();
 
+/** Senha padrão para todos os usuários do seed */
+const DEFAULT_PASSWORD = "senha@123";
+
 async function main() {
   console.log("🌱 Seeding database...\n");
+
+  // Gerar hash da senha padrão (uma vez, reutilizado para todos os usuários)
+  const passwordHash = await hashPassword(DEFAULT_PASSWORD);
+  console.log(`🔑 Senha padrão: ${DEFAULT_PASSWORD} (hashada com bcrypt, 12 rounds)\n`);
 
   // ─── Limpar dados existentes (ordem reversa de dependência) ────
   await prisma.attachment.deleteMany();
@@ -47,6 +55,7 @@ async function main() {
     data: {
       name: "João Admin",
       email: "admin@demo.com",
+      passwordHash,
       role: "admin",
       tenantId: demo.id,
     },
@@ -56,6 +65,7 @@ async function main() {
     data: {
       name: "Maria Oliveira",
       email: "maria@demo.com",
+      passwordHash,
       role: "client",
       tenantId: demo.id,
     },
@@ -65,6 +75,7 @@ async function main() {
     data: {
       name: "Carlos Santos",
       email: "admin@acme.com",
+      passwordHash,
       role: "admin",
       tenantId: acme.id,
     },
@@ -74,6 +85,7 @@ async function main() {
     data: {
       name: "Ana Costa",
       email: "ana@acme.com",
+      passwordHash,
       role: "client",
       tenantId: acme.id,
     },
@@ -432,6 +444,11 @@ async function main() {
   console.log("   → 25 chamados no tenant Demo (3 páginas com pageSize=10)");
   console.log("   → 1 chamado no tenant Acme");
   console.log("   → Distribuição: 9 open, 6 in_progress, 3 pending_feedback, 4 resolved, 3 closed");
+  console.log("\n🔐 Credenciais de login:");
+  console.log(`   → admin@demo.com / ${DEFAULT_PASSWORD} (admin, Demo Corp)`);
+  console.log(`   → maria@demo.com / ${DEFAULT_PASSWORD} (client, Demo Corp)`);
+  console.log(`   → admin@acme.com / ${DEFAULT_PASSWORD} (admin, Acme Inc)`);
+  console.log(`   → ana@acme.com   / ${DEFAULT_PASSWORD} (client, Acme Inc)`);
 }
 
 main()

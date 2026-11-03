@@ -54,7 +54,7 @@ This project tackles the challenge of building a B2B SaaS platform where multipl
 | ORM            | Prisma 6.6.0 (`@prisma/client`)               |
 | Validation     | Zod 3.x (`^3.23.0`)                           |
 | UI Components  | Radix UI + Class Variance Authority + Tailwind |
-| Authentication | jose (JWT) + httpOnly cookies                  |
+| Authentication | jose (JWT) + httpOnly cookies + bcrypt          |
 | Testing        | Vitest (workspace mode, strict TDD)            |
 | File Storage   | Cloudflare R2 (S3-compatible, presigned URLs)  |
 | Styling        | CSS Custom Properties (design tokens)          |
@@ -265,8 +265,8 @@ The seed creates:
 | Data         | Details                                                                                              |
 | ------------ | ---------------------------------------------------------------------------------------------------- |
 | **Tenants**  | Demo Corp (`demo`), Acme Inc (`acme`) — each with custom branding                                   |
-| **Users**    | `joao@demo.com` (admin), `maria@demo.com` (client), `admin@acme.com` (admin), `cliente@acme.com` (client) |
-| **Tickets**  | 3 sample tickets with different statuses and priorities                                              |
+| **Users**    | 4 users with bcrypt-hashed passwords (default: `senha@123`)                                          |
+| **Tickets**  | 25 tickets for Demo + 1 for Acme (pagination test: 3 pages with pageSize=10)                         |
 | **Messages** | Thread messages between admin and client                                                             |
 | **Threads**  | ThreadAccess tokens for public client access                                                         |
 
@@ -306,14 +306,14 @@ The app will be available at `http://localhost:3000`.
 
 ### Login Credentials
 
-| Tenant | Role   | Email              | Password     |
-| ------ | ------ | ------------------ | ------------ |
-| Demo   | Admin  | joao@demo.com      | any password |
-| Demo   | Client | maria@demo.com     | any password |
-| Acme   | Admin  | admin@acme.com     | any password |
-| Acme   | Client | cliente@acme.com   | any password |
+| Tenant | Role   | Email              | Password    |
+| ------ | ------ | ------------------ | ----------- |
+| Demo   | Admin  | admin@demo.com     | senha@123   |
+| Demo   | Client | maria@demo.com     | senha@123   |
+| Acme   | Admin  | admin@acme.com     | senha@123   |
+| Acme   | Client | ana@acme.com       | senha@123   |
 
-> **Note:** Password verification is not yet implemented (placeholder for bcrypt). Any password is accepted if the user exists in the database.
+> **Note:** Passwords are hashed with bcrypt (12 salt rounds). After schema changes, run `prisma generate && prisma db push && npm run db:seed` in `packages/db`.
 
 ---
 
@@ -354,24 +354,27 @@ The real-time (SSE) tests live in `__tests__/sse/` and avoid asserting on mocks:
 
 ### Current Coverage
 
-**404 tests** across 32 test files, organized by domain and layer:
+**476 tests** across 40 test files, organized by domain and layer:
 
 | Domain              | Schemas | Data Layer | Actions | Other      | Total |
 | ------------------- | ------- | ---------- | ------- | ---------- | ----- |
-| Tickets             | 16      | 20         | 20      | 15 (lifecycle) | 71 |
+| Tickets             | 19      | 31         | 20      | 15 (lifecycle) | 85 |
 | Messages            | 25      | 15         | 15      | —          | 55    |
 | Attachments         | 19      | 14         | —       | 36 (client, modal, uploader, cleanup) | 69 |
 | Storage / Upload    | —       | —          | —       | 31 (presign, keys, client, routes) | 31 |
 | Tenants             | 19      | 7          | 7       | —          | 33    |
 | Users               | 16      | 14         | —       | —          | 30    |
 | Real-time (SSE)     | —       | —          | —       | 73         | 73    |
-| Auth                | 4       | —          | —       | —          | 4     |
+| Auth                | 4       | —          | 7       | 9 (password) | 20   |
+| Shared              | —       | —          | —       | 28 (pagination, search params) | 28 |
 | Thread UI           | —       | —          | —       | 6 (chat bubble) | 6  |
-| **Total**           |         |            |         |            | **404** |
+| **Total**           |         |            |         |            | **476** |
 
 The 73 SSE tests cover: event emitter (11), SSE route handler (11), sync controller with polling fallback (19), `useThreadSSE` hook (8), actions emitting events (18) and an end-to-end integration of emitter + route + controller (6).
 
 The 69 attachment tests cover: Zod schemas (19), data layer with MongoDB null-vs-absent handling (14), browser upload client (25), image upload modal (11), file uploader component (11), and orphan cleanup (7).
+
+The 20 auth tests cover: login schema validation (4), login action with password verification (7), and bcrypt hash/verify unit tests (9).
 
 ---
 
@@ -396,7 +399,7 @@ The `@empresa/db` package provides a singleton PrismaClient and re-exports all g
 | Model          | Description                                              |
 | -------------- | -------------------------------------------------------- |
 | `Tenant`       | Organization with embedded `TenantTheme` (colors, logo)  |
-| `User`         | User with `admin` or `client` role (unique per tenant)   |
+| `User`         | User with `admin` or `client` role, `passwordHash` (bcrypt) — unique per tenant |
 | `Ticket`       | Support ticket with full status lifecycle                 |
 | `Message`      | Chat message in a ticket thread                          |
 | `Attachment`   | File uploaded to R2 (pending → completed lifecycle)       |
@@ -406,7 +409,10 @@ All IDs use MongoDB native ObjectIds. The `Ticket.code` field (e.g., `tkt_001`) 
 
 ### Authentication
 
-- Login via Server Action → Prisma query for user → generate JWT with `jose` → store in httpOnly cookie
+- Login via Server Action → Zod validation → Prisma query → bcrypt password verification → JWT with `jose` → httpOnly cookie
+- Passwords hashed with **bcrypt** (12 salt rounds, ~250ms per hash)
+- Generic error messages (`"E-mail ou senha incorretos"`) prevent user enumeration
+- Legacy users without `passwordHash` are treated as invalid credentials (defensive guard)
 - Middleware protects routes (`/dashboard`, `/chamados`, `/admin`)
 - Server Components use `getSession()` as a guard before rendering
 - Roles: `admin` (administrators) and `client` (end users)
@@ -616,22 +622,28 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 - [x] **Attachment lifecycle** — pending → completed association (ticket or message), orphan cleanup after 24h
 - [x] **Secure download proxy** — tenant-scoped presigned download URLs
 - [x] 5 complete domains (tenants, tickets, users, messages, attachments)
-- [x] 404 tests passing (strict TDD, including SSE integration and upload tests)
+- [x] **Password hashing (bcrypt)** — hash/verify with 12 salt rounds, generic error messages, legacy user guard
+- [x] **Server-side pagination** — RSC with Suspense streaming for ticket lists
+- [x] 476 tests passing (strict TDD across 40 test files)
+
+### 🔒 Next: Security Hardening
+
+- [ ] **HMAC session signing** — sign session cookies with HMAC-SHA256 to prevent tampering
+- [ ] **actor.ts / requireSession** — centralized session guard with typed actor context
+- [ ] **Rate limiting** — protect Server Actions against brute-force
+- [ ] **Auth middleware** — enforce session validation at the middleware layer
 
 ### 🔜 Next Steps
 
-- [ ] **Password hashing (bcrypt)** — Login currently accepts any password; implement proper hash/verify
-- [ ] **Server-side pagination** — RSC with Suspense streaming
+- [ ] **Observability** — structured logging + metrics
+- [ ] **Real-time: Redis pub/sub** — swap in-memory `ThreadEventEmitter` for Redis to support multiple server instances
+- [ ] **Internationalization (i18n)** — next-intl for multi-language support
 - [ ] **E2E tests** — Playwright for critical flows
 
 ### 🔮 Future
 
 - [ ] **Real-time: authorize the SSE endpoint** — `/api/threads/[ticketId]/events` is unauthenticated (same as `pollThreadMessages`). It carries no message data, but anyone with a `ticketId` can see that there is activity. Validate the thread token or the admin session
-- [ ] **Real-time: multiple server instances** — the event emitter is in-memory (single instance). To scale horizontally, swap `ThreadEventEmitter` for Redis pub/sub keeping the same `subscribe/emit` interface
 - [ ] CI/CD with GitHub Actions + Turbo remote cache
-- [ ] Internationalization (i18n) with next-intl
-- [ ] Rate limiting on Server Actions
-- [ ] Observability — structured logging + metrics
 - [ ] Granular role-based access control (RBAC)
 - [ ] Email notifications for thread updates
 
@@ -652,6 +664,8 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 | `Upload indisponível: variáveis do R2 não configuradas` | Missing R2 env vars | Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` in `apps/web/.env` |
 | `Can't resolve '@aws-sdk/client-s3'` | Missing S3 SDK | Run `npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner` in `apps/web` |
 | `Anexos Inválidos` on ticket/message submit | Attachment association failed | Likely a MongoDB null-vs-absent issue; ensure you're on the latest commit with the two-step find+filter fix |
+| `data and hash arguments required` on login | Users in DB created before `passwordHash` field was added | Run `prisma generate && prisma db push && npm run db:seed` in `packages/db` to recreate users with hashed passwords |
+| `Unknown argument passwordHash` on seed | Prisma Client not regenerated after schema change | Run `npx prisma generate` in `packages/db` before seeding |
 
 ---
 
@@ -679,10 +693,6 @@ Prisma is pinned to **6.6.0**. Newer versions (e.g., 6.19) may have breaking cha
 ### `.env.local` Priority
 
 Next.js loads `.env.local` with **higher priority** than `.env`. An old `.env.local` with a PostgreSQL connection string will silently override your MongoDB `DATABASE_URL`. Always check for stale `.env.local` files when debugging connection issues.
-
-### Password Verification
-
-Login currently accepts **any password** if the user exists in the database. This is a placeholder — implement bcrypt hash/verify before any production use.
 
 ### Prisma + MongoDB: null vs absent fields
 

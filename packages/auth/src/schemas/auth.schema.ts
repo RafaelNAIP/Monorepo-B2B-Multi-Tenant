@@ -1,8 +1,15 @@
 import { z } from "zod";
 
 export const loginSchema = z.object({
-  email: z.string().email("E-mail inválido"),
-  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  email: z
+    .string()
+    .email("E-mail inválido")
+    .max(255, "E-mail muito longo")
+    .transform((v) => v.toLowerCase().trim()),
+  password: z
+    .string()
+    .min(8, "Senha deve ter ao menos 8 caracteres")
+    .max(128, "Senha deve ter no máximo 128 caracteres"),
   tenantSlug: z.string().min(1, "Slug do tenant é obrigatório"),
   role: z
     .enum(["admin", "client"], {

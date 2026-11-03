@@ -3,6 +3,7 @@
 import { prisma } from "@empresa/db";
 import { loginSchema, type LoginInput } from "../schemas/auth.schema";
 import { setSessionCookie } from "../lib/session";
+import { verifyPassword } from "../lib/password";
 
 // ─── Action State Type ──────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ export async function loginAction(
     };
   }
 
-  const { email, tenantSlug, role } = validation.data;
+  const { email, password, tenantSlug, role } = validation.data;
 
   try {
     // 2. Resolve tenant no banco
@@ -73,17 +74,32 @@ export async function loginAction(
       },
     });
     if (!user) {
+      // Mensagem genérica para prevenir enumeração de usuários
       return {
         success: false,
         error: "E-mail ou senha incorretos",
       };
     }
 
-    // Nota: Verificação de senha está desabilitada (sem hash implementado).
-    // Em produção, comparar password com hash armazenado (bcrypt).
-    // Por ora, qualquer senha é aceita se o usuário existe.
+    // 4. Verificar senha com bcrypt
+    //    Guard: usuários legados sem passwordHash são tratados como senha inválida
+    if (!user.passwordHash) {
+      return {
+        success: false,
+        error: "E-mail ou senha incorretos",
+      };
+    }
 
-    // 4. Criar sessão com role
+    const passwordValid = await verifyPassword(password, user.passwordHash);
+    if (!passwordValid) {
+      // Mesma mensagem genérica — não revelar se o email existe
+      return {
+        success: false,
+        error: "E-mail ou senha incorretos",
+      };
+    }
+
+    // 5. Criar sessão
     await setSessionCookie({
       sub: user.id,
       email: user.email,
@@ -93,7 +109,7 @@ export async function loginAction(
       role: user.role,
     });
 
-    // 5. Definir redirecionamento baseado no role
+    // 6. Definir redirecionamento baseado no role
     const redirectTo =
       user.role === "admin"
         ? `/${tenantSlug}/admin`

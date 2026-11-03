@@ -82,12 +82,13 @@ model Tenant {
 }
 
 model User {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  name      String
-  email     String
-  role      UserRole
-  tenantId  String   @db.ObjectId
-  createdAt DateTime @default(now())
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String
+  passwordHash String
+  role         UserRole
+  tenantId     String   @db.ObjectId
+  createdAt    DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 

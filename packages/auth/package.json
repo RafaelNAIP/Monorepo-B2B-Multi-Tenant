@@ -7,7 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./schemas": "./src/schemas/index.ts",
-    "./actions": "./src/actions/index.ts"
+    "./actions": "./src/actions/index.ts",
+    "./constants": "./src/lib/constants.ts",
+    "./token": "./src/lib/token.ts"
   },
   "dependencies": {
     "@empresa/db": "*",

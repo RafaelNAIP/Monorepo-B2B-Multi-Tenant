@@ -2,7 +2,7 @@
 
 A modular B2B multi-tenant corporate web platform featuring an admin panel, client portal, and a shared UI component package (decoupled Design System), running on a modern monorepo setup.
 
-> **Status:** Active MVP development — Prisma + MongoDB, HMAC-SHA256 auth, SSE real-time, Cloudflare R2 uploads. 560 tests passing.
+> **Status:** Active MVP development — Prisma + MongoDB, HMAC-SHA256 auth, SSE real-time, Cloudflare R2 uploads. 598 tests passing.
 
 ---
 
@@ -49,7 +49,7 @@ This project tackles the challenge of building a B2B SaaS platform where multipl
 | Monorepo       | Turborepo + pnpm workspaces                    |
 | Runtime        | Node.js ≥ 20, pnpm 9.12+                      |
 | Framework      | Next.js 15 (App Router, Turbopack)             |
-| Language       | TypeScript 5.6+ (strict mode)                  |
+| Language       | TypeScript 5.7+ (strict mode)                  |
 | Database       | MongoDB (via Prisma ORM)                       |
 | ORM            | Prisma 6.6.0 (`@prisma/client`)               |
 | Validation     | Zod 3.x (`^3.23.0`)                           |
@@ -375,7 +375,7 @@ The real-time (SSE) tests live in `__tests__/sse/` and test the **real** `Thread
 
 ### Current Coverage
 
-**560 tests** across 48 test files, organized by domain and layer. All tests pass with 0 `it.fails`.
+**598 tests** across 53 test files, organized by domain and layer. All tests pass with 0 `it.fails`.
 
 ---
 
@@ -587,7 +587,7 @@ To add a new domain mapping, create a new function in `badge-variants.ts` — ne
 
 ### Code Standards
 
-- **TypeScript strict mode** — no `any`, no `@ts-ignore`
+- **TypeScript strict mode** — no `any`, no `@ts-ignore`. Hand-written interfaces must match Prisma-generated types (e.g. `DateTime` → `Date`, enum keys = Prisma values)
 - **Zod 3.x** — Zod 4 breaks `errorMap` in `z.enum()`, do not use
 - **forwardRef + CVA + cn()** — mandatory pattern for UI components
 - **Server Components** — data fetching and auth guards live in RSC
@@ -638,8 +638,6 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 - [x] 5 complete domains (tenants, tickets, users, messages, attachments)
 - [x] **Password hashing (bcrypt)** — hash/verify with 12 salt rounds, generic error messages, legacy user guard
 - [x] **Server-side pagination** — RSC with Suspense streaming for ticket lists
-- [x] **Password hashing (bcrypt)** — hash/verify with 12 salt rounds, generic error messages, legacy user guard
-- [x] **Server-side pagination** — RSC with Suspense streaming for ticket lists
 - [x] 🔒 **Security hardening (4 phases)** — HMAC-SHA256 session cookies (Web Crypto, edge-safe), `requireSession()` centralized guard, middleware with signature verification, rate limiting (in-memory sliding window)
 - [x] 📡 **Real-time hardening (5 phases)** — authenticated SSE endpoint, thread token expiration/revocation, `ThreadEventChannel` interface with InMemory/Redis adapters, Vercel `maxDuration`, ADR documented
 - [x] 🧹 **Code cleanup refactoring (6 phases)** — SSE singleton fix, dead code removal, full auth migration to `requireSession()`, Badge decoupled from domain, `ActionState` local to auth package, `$transaction` for ticket code atomicity, Button variant fixes
@@ -647,7 +645,8 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 - [x] 🚦 **Rate limit in actions** — login by IP (5/min, before any DB query), critical actions by session (20/min) returning `ActionState` errors in PT
 - [x] 📡 **Real `RedisChannel`** — cross-instance SSE fan-out: publish to Upstash list + server-side polling inside the SSE route (de-dup by event id, own-origin skipped)
 - [x] 🚀 **Vercel deploy prep** — `vercel.json` (build + daily cron), attachment cleanup exposed to Vercel Cron via `CRON_SECRET`
-- [x] 598 tests passing (strict TDD across 52 test files, 0 `it.fails`)
+- [x] 🔧 **Type alignment with Prisma** — all hand-written interfaces now match Prisma-generated types: `DateTime` → `Date` (Tenant, Ticket, Message), `TicketCategory` enum keys aligned with Prisma snake_case values, `as const` on status/priority literals, `Uint8Array<ArrayBuffer>` casts for TS 5.7+ Web Crypto compatibility
+- [x] 598 tests passing (strict TDD across 53 test files, 0 `it.fails`)
 
 ### 🔜 Next Steps (by priority)
 
@@ -728,6 +727,8 @@ Depois do primeiro build, rode o seed contra o banco de produção a partir da s
 | SSE not working across instances (production) | `UPSTASH_REDIS_REST_*` missing | Add both variables to the Vercel project (see `.env.example`) |
 | Login says `Muitas tentativas` during testing | IP exceeded 5 login attempts in 1 minute | Wait for the window to clear (`retryAfterMs` is in the message), or restart the dev server to reset the in-memory store |
 | `data and hash arguments required` on login | Users in DB created before `passwordHash` field was added | Run `prisma generate && prisma db push && npm run db:seed` in `packages/db` to recreate users with hashed passwords |
+| `Uint8Array<ArrayBufferLike>` not assignable to `BufferSource` | TypeScript 5.7+ made `Uint8Array` generic; `ArrayBufferLike` no longer satisfies `ArrayBuffer` | Cast to `Uint8Array<ArrayBuffer>` at the call site (e.g. `crypto.subtle.sign/verify`) |
+| `Type 'Date' is not assignable to type 'string'` on Prisma fields | Hand-written interface declares `string` but Prisma returns `Date` for `DateTime` | Change the interface field to `Date` — Prisma always returns `Date` for `DateTime` |
 | `Unknown argument passwordHash` on seed | Prisma Client not regenerated after schema change | Run `npx prisma generate` in `packages/db` before seeding |
 
 ---

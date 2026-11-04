@@ -4,12 +4,14 @@ import {
   SSE_REOPEN_DELAY_MS,
   threadEventsUrl,
 } from "./constants";
-import { THREAD_EVENT_TYPES } from "./thread-event-emitter";
+import { THREAD_EVENT_TYPES } from "./channel";
 
 export type SyncMode = "sse" | "polling";
 
 export interface ThreadSyncOptions<TSnapshot> {
   ticketId: string;
+  /** Token público de thread (para clientes sem sessão de admin). */
+  threadToken?: string;
   /** Busca o estado atual da thread (ex.: Server Action `pollThreadMessages`). */
   fetchSnapshot: () => Promise<TSnapshot>;
   onSnapshot: (snapshot: TSnapshot) => void;
@@ -34,6 +36,7 @@ export function createThreadSync<TSnapshot>(
 ): ThreadSync {
   const {
     ticketId,
+    threadToken,
     fetchSnapshot,
     onSnapshot,
     createEventSource = (url: string) => new EventSource(url),
@@ -92,7 +95,7 @@ export function createThreadSync<TSnapshot>(
 
   // ── conexão SSE ────────────────────────────────────────────────
   function connect() {
-    const es = createEventSource(threadEventsUrl(ticketId));
+    const es = createEventSource(threadEventsUrl(ticketId, threadToken));
     source = es;
 
     es.addEventListener("open", () => {

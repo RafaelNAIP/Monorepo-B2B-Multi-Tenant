@@ -7,7 +7,7 @@ import {
   pageWindow,
   totalPagesFor,
 } from "@/lib/shared/pagination";
-import { notifyThread } from "@/lib/sse/thread-event-emitter";
+import { notifyThread } from "@/lib/sse/channel-singleton";
 import type { TicketCategory, TicketStatus } from "./constants";
 
 // ─── Category mapping (Portuguese display → Prisma enum) ─────────
@@ -127,32 +127,35 @@ export async function createTicket(input: {
   requester: string;
   attachmentKeys?: string[];
 }) {
-  const count = await prisma.ticket.count();
-  const code = `tkt_${String(count + 1).padStart(3, "0")}`;
-
-  const data = {
-    code,
-    title: input.title,
-    requester: input.requester,
-    status: "open",
-    priority: "medium",
-    category: categoryToEnum(input.category),
-    description: input.description,
-    tenantId: input.tenantId,
-  };
-
   const keys = input.attachmentKeys ?? [];
-  if (keys.length === 0) {
-    return prisma.ticket.create({ data });
-  }
 
+  // Usa $transaction para garantir atomicidade entre count → create (evita
+  // códigos duplicados em requisições concorrentes) e entre create → attach.
   return prisma.$transaction(async (tx) => {
+    const count = await tx.ticket.count();
+    const code = `tkt_${String(count + 1).padStart(3, "0")}`;
+
+    const data = {
+      code,
+      title: input.title,
+      requester: input.requester,
+      status: "open",
+      priority: "medium",
+      category: categoryToEnum(input.category),
+      description: input.description,
+      tenantId: input.tenantId,
+    };
+
     const ticket = await tx.ticket.create({ data });
-    const attached = await attachToTicket(
-      { keys, ticketId: ticket.id, tenantId: input.tenantId },
-      tx
-    );
-    if (attached !== keys.length) throw new Error(ATTACHMENTS_INVALID);
+
+    if (keys.length > 0) {
+      const attached = await attachToTicket(
+        { keys, ticketId: ticket.id, tenantId: input.tenantId },
+        tx
+      );
+      if (attached !== keys.length) throw new Error(ATTACHMENTS_INVALID);
+    }
+
     return ticket;
   });
 }
@@ -263,38 +266,3 @@ export async function checkAutoClose(ticketId: string) {
   return closed;
 }
 
-/**
- * Cria um novo ticket vinculado a um ticket original (quando cliente
- * informa que o problema não foi resolvido).
- * Retorna null se o ticket original não existir.
- */
-export async function createRelatedTicket(input: {
-  originalTicketId: string;
-  title: string;
-  description: string;
-  requester: string;
-  category: string;
-  tenantId: string;
-}) {
-  const original = await prisma.ticket.findUnique({
-    where: { id: input.originalTicketId },
-  });
-  if (!original) return null;
-
-  const count = await prisma.ticket.count();
-  const code = `tkt_${String(count + 1).padStart(3, "0")}`;
-
-  return prisma.ticket.create({
-    data: {
-      code,
-      title: input.title,
-      requester: input.requester,
-      status: "open",
-      priority: "medium",
-      category: categoryToEnum(input.category),
-      description: input.description,
-      tenantId: input.tenantId,
-      relatedTicketId: input.originalTicketId,
-    },
-  });
-}

@@ -2,8 +2,13 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
 import { makeFormData } from "../helpers/form-data";
+import { mockRequireSession, mockGetSession, resetAuthMocks } from "../helpers/mock-auth";
 
 vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
+vi.mock("@empresa/auth", () => ({
+  requireSession: (...args: unknown[]) => mockRequireSession(...args),
+  getSession: (...args: unknown[]) => mockGetSession(...args),
+}));
 
 // Mock next/cache antes de importar as actions
 vi.mock("next/cache", () => ({
@@ -21,27 +26,25 @@ const initialState = { success: false, error: null, fieldErrors: {} };
 describe("Server Actions de mensagens", () => {
   beforeEach(() => {
     resetPrismaMocks();
+    resetAuthMocks();
   });
 
   // ─── sendMessageAction ─────────────────────────────────────────
 
   describe("sendMessageAction", () => {
-    it("cria mensagem com dados válidos", async () => {
+    it("cria mensagem com dados válidos (admin via sessão)", async () => {
       prismaMock.message.create.mockResolvedValue({
         id: "msg_new",
         ticketId: "tkt_001",
         tenantId: "t_01",
         senderRole: "admin",
-        senderName: "João Admin",
+        senderName: "Admin Demo",
         content: "Olá, como posso ajudar?",
         createdAt: new Date(),
       });
 
       const fd = makeFormData({
         ticketId: "tkt_001",
-        tenantId: "t_01",
-        senderRole: "admin",
-        senderName: "João Admin",
         content: "Olá, como posso ajudar?",
       });
 
@@ -51,7 +54,19 @@ describe("Server Actions de mensagens", () => {
       expect(prismaMock.message.create).toHaveBeenCalledOnce();
     });
 
-    it("cria mensagem como cliente", async () => {
+    it("cria mensagem como cliente via threadToken", async () => {
+      // Sem sessão — client usa threadToken
+      mockGetSession.mockResolvedValue(null);
+
+      prismaMock.threadAccess.findFirst.mockResolvedValue({
+        id: "ta_01",
+        ticketId: "tkt_001",
+        tenantId: "t_01",
+        token: "valid-thread-token",
+        clientName: "Maria Cliente",
+        clientEmail: "maria@exemplo.com",
+        createdAt: new Date(),
+      });
       prismaMock.message.create.mockResolvedValue({
         id: "msg_new",
         ticketId: "tkt_001",
@@ -64,9 +79,7 @@ describe("Server Actions de mensagens", () => {
 
       const fd = makeFormData({
         ticketId: "tkt_001",
-        tenantId: "t_01",
-        senderRole: "client",
-        senderName: "Maria Cliente",
+        threadToken: "valid-thread-token",
         content: "Preciso de ajuda com o sistema",
       });
 
@@ -77,9 +90,6 @@ describe("Server Actions de mensagens", () => {
     it("retorna fieldErrors com conteúdo vazio", async () => {
       const fd = makeFormData({
         ticketId: "tkt_001",
-        tenantId: "t_01",
-        senderRole: "admin",
-        senderName: "Admin",
         content: "",
       });
 
@@ -89,25 +99,22 @@ describe("Server Actions de mensagens", () => {
       expect(result.fieldErrors.content).toBeDefined();
     });
 
-    it("retorna fieldErrors com role inválido", async () => {
+    it("retorna erro sem autenticação", async () => {
+      mockGetSession.mockResolvedValue(null);
+
       const fd = makeFormData({
         ticketId: "tkt_001",
-        tenantId: "t_01",
-        senderRole: "manager",
-        senderName: "Admin",
         content: "Mensagem válida",
       });
 
       const result = await sendMessageAction(initialState, fd);
       expect(result.success).toBe(false);
+      expect(result.error).toContain("Autenticação");
     });
 
     it("não chama prisma.message.create quando validação falha", async () => {
       const fd = makeFormData({
         ticketId: "tkt_001",
-        tenantId: "t_01",
-        senderRole: "admin",
-        senderName: "Admin",
         content: "",
       });
 
@@ -133,10 +140,8 @@ describe("Server Actions de mensagens", () => {
 
       const fd = makeFormData({
         ticketId: "tkt_001",
-        tenantId: "t_01",
         clientName: "Maria Oliveira",
         clientEmail: "maria@exemplo.com",
-        tenantSlug: "demo",
       });
 
       const result = await createThreadAccessAction(initialState, fd);
@@ -149,10 +154,8 @@ describe("Server Actions de mensagens", () => {
     it("retorna fieldErrors com email inválido", async () => {
       const fd = makeFormData({
         ticketId: "tkt_001",
-        tenantId: "t_01",
         clientName: "Maria",
         clientEmail: "email-invalido",
-        tenantSlug: "demo",
       });
 
       const result = await createThreadAccessAction(initialState, fd);
@@ -163,10 +166,8 @@ describe("Server Actions de mensagens", () => {
     it("retorna fieldErrors com nome muito curto", async () => {
       const fd = makeFormData({
         ticketId: "tkt_001",
-        tenantId: "t_01",
         clientName: "A",
         clientEmail: "maria@exemplo.com",
-        tenantSlug: "demo",
       });
 
       const result = await createThreadAccessAction(initialState, fd);
@@ -189,7 +190,7 @@ describe("Server Actions de mensagens", () => {
       expect(result.fieldErrors.resolution).toBeDefined();
     });
 
-    it("aceita feedback 'resolved' com dados válidos", async () => {
+    it("aceita feedback 'resolved' com dados válidos (admin via sessão)", async () => {
       const pendingTicket = {
         id: "tkt_001",
         code: "tkt_001",
@@ -217,7 +218,6 @@ describe("Server Actions de mensagens", () => {
       const fd = makeFormData({
         ticketId: "tkt_001",
         resolution: "resolved",
-        tenantSlug: "demo",
       });
 
       const result = await submitFeedbackAction(initialState, fd);
@@ -252,7 +252,6 @@ describe("Server Actions de mensagens", () => {
       const fd = makeFormData({
         ticketId: "tkt_001",
         resolution: "unresolved",
-        tenantSlug: "demo",
       });
 
       const result = await submitFeedbackAction(initialState, fd);
@@ -260,7 +259,6 @@ describe("Server Actions de mensagens", () => {
     });
 
     it("retorna erro quando ticket não está em pending_feedback", async () => {
-      // submitTicketFeedback retorna null para ticket que não está em pending_feedback
       prismaMock.ticket.findUnique.mockResolvedValue({
         id: "tkt_002",
         code: "tkt_002",
@@ -282,7 +280,6 @@ describe("Server Actions de mensagens", () => {
       const fd = makeFormData({
         ticketId: "tkt_002",
         resolution: "resolved",
-        tenantSlug: "demo",
       });
 
       const result = await submitFeedbackAction(initialState, fd);
@@ -295,18 +292,20 @@ describe("Server Actions de mensagens", () => {
 describe("sendMessageAction — anexos", () => {
   const baseFields = {
     ticketId: "tkt_001",
-    tenantId: "t_01",
-    senderRole: "client",
-    senderName: "Maria Cliente",
     content: "Segue o print do erro",
   };
 
   beforeEach(() => {
     resetPrismaMocks();
+    resetAuthMocks();
   });
 
   it("envia mensagem associando os anexos informados", async () => {
-    prismaMock.message.create.mockResolvedValue({ id: "msg_new", ...baseFields, createdAt: new Date() });
+    prismaMock.message.create.mockResolvedValue({
+      id: "msg_new", ticketId: "tkt_001", tenantId: "t_01",
+      senderRole: "admin", senderName: "Admin Demo",
+      content: baseFields.content, createdAt: new Date(),
+    });
     prismaMock.attachment.findMany.mockResolvedValue([
       { id: "A1", fileKey: "t_01/tkt_001/a.png", tenantId: "t_01", status: "pending", ticketId: null, messageId: null },
     ]);
@@ -330,7 +329,11 @@ describe("sendMessageAction — anexos", () => {
   });
 
   it("retorna erro de anexo inválido e não notifica a thread", async () => {
-    prismaMock.message.create.mockResolvedValue({ id: "msg_new", ...baseFields, createdAt: new Date() });
+    prismaMock.message.create.mockResolvedValue({
+      id: "msg_new", ticketId: "tkt_001", tenantId: "t_01",
+      senderRole: "admin", senderName: "Admin Demo",
+      content: baseFields.content, createdAt: new Date(),
+    });
     prismaMock.attachment.findMany.mockResolvedValue([]); // nenhum candidato encontrado
 
     const fd = makeFormData({ ...baseFields, attachmentKeys: JSON.stringify(["outro/tenant/x.png"]) });

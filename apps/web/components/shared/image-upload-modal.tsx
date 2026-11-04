@@ -254,7 +254,7 @@ export function ImageUploadModal({
         <div className="mt-3">
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             disabled={atLimit || uploading}
             onClick={() => inputRef.current?.click()}
           >

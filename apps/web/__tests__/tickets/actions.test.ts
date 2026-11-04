@@ -2,8 +2,13 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
 import { makeFormData } from "../helpers/form-data";
+import { mockRequireSession, mockGetSession, resetAuthMocks } from "../helpers/mock-auth";
 
 vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
+vi.mock("@empresa/auth", () => ({
+  requireSession: (...args: unknown[]) => mockRequireSession(...args),
+  getSession: (...args: unknown[]) => mockGetSession(...args),
+}));
 
 // Mock next/cache para revalidatePath
 vi.mock("next/cache", () => ({
@@ -32,13 +37,12 @@ const validCreateFields = {
   category: "Financeiro",
   description:
     "O sistema de pagamentos não está processando boletos corretamente.",
-  tenantId: "t_01",
-  requester: "Usuário de Teste",
 };
 
 describe("createTicketAction", () => {
   beforeEach(() => {
     resetPrismaMocks();
+    resetAuthMocks();
   });
 
   it("cria chamado com dados válidos e retorna success", async () => {
@@ -47,7 +51,7 @@ describe("createTicketAction", () => {
       id: "new_id",
       code: "tkt_009",
       title: validCreateFields.title,
-      requester: validCreateFields.requester,
+      requester: "Admin Demo",
       status: "open",
       priority: "medium",
       category: "financeiro",
@@ -75,7 +79,7 @@ describe("createTicketAction", () => {
       id: "new_id",
       code: "tkt_009",
       title: validCreateFields.title,
-      requester: validCreateFields.requester,
+      requester: "Admin Demo",
       status: "open",
       priority: "medium",
       category: "financeiro",
@@ -134,8 +138,6 @@ describe("createTicketAction", () => {
       title: "Ab",
       category: "Inexistente",
       description: "Curta",
-      tenantId: "t_01",
-      requester: "Teste",
     });
     const result = await createTicketAction(createInitialState, formData);
 
@@ -150,8 +152,6 @@ describe("createTicketAction", () => {
       title: "",
       category: "",
       description: "",
-      tenantId: "t_01",
-      requester: "Teste",
     });
     const result = await createTicketAction(createInitialState, formData);
 
@@ -159,12 +159,12 @@ describe("createTicketAction", () => {
     expect(Object.keys(result.fieldErrors).length).toBeGreaterThanOrEqual(2);
   });
 
-  const TENANT = validCreateFields.tenantId;
+  const TENANT = "t_01"; // vem da sessão mock
   const createdTicket = {
     id: "tkt_new",
     code: "tkt_001",
     title: validCreateFields.title,
-    requester: validCreateFields.requester,
+    requester: "Admin Demo",
     status: "open",
     priority: "medium",
     category: "financeiro",
@@ -264,6 +264,7 @@ describe("createTicketAction", () => {
 describe("assignTicketAction", () => {
   beforeEach(() => {
     resetPrismaMocks();
+    resetAuthMocks();
   });
 
   const openTicket = {
@@ -295,7 +296,6 @@ describe("assignTicketAction", () => {
     const formData = makeFormData({
       ticketId: "tkt_001",
       adminUserId: "u_01",
-      tenantSlug: "demo",
     });
 
     const result = await assignTicketAction(assignInitialState, formData);
@@ -315,7 +315,6 @@ describe("assignTicketAction", () => {
     const formData = makeFormData({
       ticketId: "tkt_001",
       adminUserId: "u_01",
-      tenantSlug: "demo",
     });
 
     await assignTicketAction(assignInitialState, formData);
@@ -332,7 +331,6 @@ describe("assignTicketAction", () => {
     const formData = makeFormData({
       ticketId: "tkt_999",
       adminUserId: "u_01",
-      tenantSlug: "demo",
     });
 
     const result = await assignTicketAction(assignInitialState, formData);
@@ -348,7 +346,6 @@ describe("assignTicketAction", () => {
     const formData = makeFormData({
       ticketId: "tkt_002",
       adminUserId: "u_01",
-      tenantSlug: "demo",
     });
 
     const result = await assignTicketAction(assignInitialState, formData);
@@ -361,7 +358,6 @@ describe("assignTicketAction", () => {
     const formData = makeFormData({
       ticketId: "invalido",
       adminUserId: "u_01",
-      tenantSlug: "demo",
     });
 
     const result = await assignTicketAction(assignInitialState, formData);
@@ -374,7 +370,6 @@ describe("assignTicketAction", () => {
     const formData = makeFormData({
       ticketId: "tkt_001",
       adminUserId: "",
-      tenantSlug: "demo",
     });
 
     const result = await assignTicketAction(assignInitialState, formData);
@@ -386,7 +381,6 @@ describe("assignTicketAction", () => {
     const formData = makeFormData({
       ticketId: "invalido",
       adminUserId: "u_01",
-      tenantSlug: "demo",
     });
 
     await assignTicketAction(assignInitialState, formData);

@@ -4,8 +4,9 @@ export const HEARTBEAT_INTERVAL_MS = 30_000;
 /** Delay que o EventSource do navegador espera antes de reconectar (campo `retry`). */
 export const RECONNECT_DELAY_MS = 3_000;
 
-export function threadEventsUrl(ticketId: string): string {
-  return `/api/threads/${encodeURIComponent(ticketId)}/events`;
+export function threadEventsUrl(ticketId: string, token?: string): string {
+  const base = `/api/threads/${encodeURIComponent(ticketId)}/events`;
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base;
 }
 
 /** Erros consecutivos do EventSource antes de cair para polling. */

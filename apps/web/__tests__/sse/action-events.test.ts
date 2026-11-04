@@ -2,8 +2,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
 import { makeFormData } from "../helpers/form-data";
+import { mockRequireSession, mockGetSession, resetAuthMocks } from "../helpers/mock-auth";
 
 vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
+vi.mock("@empresa/auth", () => ({
+  requireSession: (...args: unknown[]) => mockRequireSession(...args),
+  getSession: (...args: unknown[]) => mockGetSession(...args),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import {
@@ -15,10 +20,8 @@ import {
   disconnectTicketAction,
 } from "../../lib/tickets/actions";
 import { checkAutoClose } from "../../lib/tickets/data";
-import {
-  threadEventEmitter,
-  type ThreadEvent,
-} from "../../lib/sse/thread-event-emitter";
+import { threadChannel } from "../../lib/sse/channel-singleton";
+import type { ThreadEvent } from "../../lib/sse/channel";
 
 /**
  * As actions, a camada de dados e o emitter são os REAIS. Só o Prisma é
@@ -36,11 +39,12 @@ let unsubscribe: Array<() => void>;
 
 beforeEach(() => {
   resetPrismaMocks();
+  resetAuthMocks();
   received = [];
   others = [];
   unsubscribe = [
-    threadEventEmitter.subscribe(TICKET, (e) => received.push(e)),
-    threadEventEmitter.subscribe("tkt_ev_other", (e) => others.push(e)),
+    threadChannel.subscribe(TICKET, (e) => received.push(e)),
+    threadChannel.subscribe("tkt_ev_other", (e) => others.push(e)),
   ];
 });
 afterEach(() => unsubscribe.forEach((u) => u()));
@@ -48,9 +52,6 @@ afterEach(() => unsubscribe.forEach((u) => u()));
 function messageForm(overrides: Record<string, string> = {}) {
   return makeFormData({
     ticketId: TICKET,
-    tenantId: "t_01",
-    senderRole: "admin",
-    senderName: "Atendente",
     content: "Olá!",
     ...overrides,
   });
@@ -77,7 +78,7 @@ describe("sendMessageAction → new_message", () => {
     });
     let dbAtNotification: string[] = [];
     unsubscribe.push(
-      threadEventEmitter.subscribe(TICKET, () => {
+      threadChannel.subscribe(TICKET, () => {
         dbAtNotification = [...db];
       })
     );
@@ -144,7 +145,7 @@ describe("submitFeedbackAction → ticket_updated", () => {
 
 describe("assignTicketAction → ticket_updated", () => {
   const form = () =>
-    makeFormData({ ticketId: TICKET, adminUserId: "u_01", tenantSlug: "acme" });
+    makeFormData({ ticketId: TICKET, adminUserId: "u_01" });
 
   it("notifica quando o atendente assume o chamado", async () => {
     prismaMock.ticket.findUnique.mockResolvedValue({ id: TICKET, status: "open" });
@@ -180,7 +181,7 @@ describe("disconnectTicketAction → thread_disconnected", () => {
 
     const result = await disconnectTicketAction(
       assignInitial,
-      makeFormData({ ticketId: TICKET, tenantSlug: "acme" })
+      makeFormData({ ticketId: TICKET })
     );
 
     expect(result.success).toBe(true);

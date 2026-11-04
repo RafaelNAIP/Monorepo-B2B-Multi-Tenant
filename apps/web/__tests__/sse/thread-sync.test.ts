@@ -7,7 +7,7 @@ import {
   MAX_SSE_ERRORS,
   SSE_REOPEN_DELAY_MS,
 } from "../../lib/sse/constants";
-import { THREAD_EVENT_TYPES } from "../../lib/sse/thread-event-emitter";
+import { THREAD_EVENT_TYPES } from "../../lib/sse/channel";
 import { FakeEventSource } from "./helpers/fake-event-source";
 
 /**

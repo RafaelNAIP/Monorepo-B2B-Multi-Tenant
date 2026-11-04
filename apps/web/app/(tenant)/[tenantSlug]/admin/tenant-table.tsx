@@ -14,6 +14,7 @@ import {
 } from "@empresa/ui";
 
 import type { Tenant } from "@/lib/tenants/types";
+import { subscriptionVariant } from "@/lib/shared/badge-variants";
 import { FilterSelect } from "@/components/filter-select";
 import {
   SUBSCRIPTION_STATUS,
@@ -98,7 +99,7 @@ export function TenantTable({ tenants }: TenantTableProps) {
                   {tenant.slug}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={tenant.subscription as SubscriptionStatus}>
+                  <Badge variant={subscriptionVariant(tenant.subscription)}>
                     {SUBSCRIPTION_STATUS[tenant.subscription]}
                   </Badge>
                 </TableCell>

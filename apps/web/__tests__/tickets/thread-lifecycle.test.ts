@@ -10,7 +10,6 @@ import {
   disconnectTicket,
   submitTicketFeedback,
   checkAutoClose,
-  createRelatedTicket,
 } from "../../lib/tickets/data";
 
 // ─── Fixtures ────────────────────────────────────────────────────────
@@ -206,92 +205,4 @@ describe("Ciclo de vida da thread no ticket", () => {
     });
   });
 
-  // ─── createRelatedTicket ──────────────────────────────────────
-
-  describe("createRelatedTicket", () => {
-    it("cria ticket relacionado com relatedTicketId apontando para o original", async () => {
-      prismaMock.ticket.findUnique.mockResolvedValue(IN_PROGRESS_TICKET);
-      prismaMock.ticket.count.mockResolvedValue(8);
-      prismaMock.ticket.create.mockResolvedValue({
-        id: "new_id",
-        code: "tkt_009",
-        title: "Problema persiste após atendimento",
-        requester: "Carlos Santos",
-        status: "open",
-        priority: "medium",
-        category: "financeiro",
-        description: "O erro no relatório continua acontecendo.",
-        tenantId: "t_01",
-        assignedTo: null,
-        disconnectedAt: null,
-        feedbackDeadline: null,
-        relatedTicketId: "tkt_002",
-        closedReason: null,
-        createdAt: new Date(),
-      });
-
-      const newTicket = await createRelatedTicket({
-        originalTicketId: "tkt_002",
-        title: "Problema persiste após atendimento",
-        description: "O erro no relatório continua acontecendo.",
-        requester: "Carlos Santos",
-        category: "Financeiro",
-        tenantId: "t_01",
-      });
-
-      expect(newTicket).not.toBeNull();
-      expect(newTicket!.relatedTicketId).toBe("tkt_002");
-      expect(newTicket!.status).toBe("open");
-      expect(newTicket!.title).toBe("Problema persiste após atendimento");
-    });
-
-    it("retorna null se ticket original não existe", async () => {
-      prismaMock.ticket.findUnique.mockResolvedValue(null);
-
-      const result = await createRelatedTicket({
-        originalTicketId: "tkt_999",
-        title: "Teste",
-        description: "Teste",
-        requester: "Teste",
-        category: "TI",
-        tenantId: "t_01",
-      });
-
-      expect(result).toBeNull();
-    });
-
-    it("novo ticket é independente e fica com status open", async () => {
-      prismaMock.ticket.findUnique.mockResolvedValue(IN_PROGRESS_TICKET);
-      prismaMock.ticket.count.mockResolvedValue(8);
-      prismaMock.ticket.create.mockResolvedValue({
-        id: "new_id",
-        code: "tkt_009",
-        title: "Novo ticket",
-        requester: "Carlos Santos",
-        status: "open",
-        priority: "medium",
-        category: "financeiro",
-        description: "Descrição",
-        tenantId: "t_01",
-        assignedTo: null,
-        disconnectedAt: null,
-        feedbackDeadline: null,
-        relatedTicketId: "tkt_002",
-        closedReason: null,
-        createdAt: new Date(),
-      });
-
-      const newTicket = await createRelatedTicket({
-        originalTicketId: "tkt_002",
-        title: "Novo ticket",
-        description: "Descrição",
-        requester: "Carlos Santos",
-        category: "Financeiro",
-        tenantId: "t_01",
-      });
-
-      expect(newTicket!.assignedTo).toBeNull();
-      expect(newTicket!.status).toBe("open");
-    });
-  });
 });

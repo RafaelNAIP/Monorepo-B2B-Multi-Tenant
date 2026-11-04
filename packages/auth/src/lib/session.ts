@@ -56,10 +56,13 @@ export async function getSession(): Promise<SessionPayload | null> {
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!raw) return null;
 
+  // getSecret() fora do try: se JWT_SECRET não existe, o erro NÃO é engolido.
+  const secret = getSecret();
+
   try {
-    const secret = getSecret();
     return await verifySessionToken(raw, secret);
   } catch {
+    // Token adulterado, expirado ou malformado → sessão inválida
     return null;
   }
 }

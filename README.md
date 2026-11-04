@@ -2,7 +2,7 @@
 
 A modular B2B multi-tenant corporate web platform featuring an admin panel, client portal, and a shared UI component package (decoupled Design System), running on a modern monorepo setup.
 
-> **Status:** Active MVP development — Prisma + MongoDB database layer with full seed data.
+> **Status:** Active MVP development — Prisma + MongoDB, HMAC-SHA256 auth, SSE real-time, Cloudflare R2 uploads. 560 tests passing.
 
 ---
 
@@ -54,7 +54,7 @@ This project tackles the challenge of building a B2B SaaS platform where multipl
 | ORM            | Prisma 6.6.0 (`@prisma/client`)               |
 | Validation     | Zod 3.x (`^3.23.0`)                           |
 | UI Components  | Radix UI + Class Variance Authority + Tailwind |
-| Authentication | jose (JWT) + httpOnly cookies + bcrypt          |
+| Authentication | HMAC-SHA256 (Web Crypto, edge-safe) + httpOnly cookies + bcrypt |
 | Testing        | Vitest (workspace mode, strict TDD)            |
 | File Storage   | Cloudflare R2 (S3-compatible, presigned URLs)  |
 | Styling        | CSS Custom Properties (design tokens)          |
@@ -94,17 +94,20 @@ monorepo-empresa/
 │       │   └── use-thread-sse.ts     # Real-time hook used by admin & client views
 │       ├── lib/
 │       │   ├── attachments/          # Attachment lifecycle (presign, associate, cleanup)
+│       │   ├── auth/                 # Protected routes config
+│       │   ├── shared/               # Shared utilities (action-state, parse-form, badge-variants, etc.)
 │       │   ├── storage/              # R2/S3 client, presign, keys, constants
-│       │   ├── sse/                  # Real-time: event emitter + sync controller
+│       │   ├── sse/                  # Real-time: ThreadEventChannel interface + adapters (InMemory/Redis)
 │       │   ├── tenants/              # Domain: Tenants
 │       │   ├── tickets/              # Domain: Tickets
 │       │   ├── messages/             # Domain: Messages & Threads
+│       │   ├── upload/               # Presign service (business rules)
 │       │   └── users/                # Domain: Users
 │       ├── __tests__/                # Tests organized by domain
 │       └── middleware.ts             # Route protection
 ├── packages/
 │   ├── ui/                           # @empresa/ui — Design System
-│   ├── auth/                         # @empresa/auth — JWT Auth
+│   ├── auth/                         # @empresa/auth — Session (HMAC-SHA256), guards, rate limiting
 │   └── db/                           # @empresa/db — Prisma + MongoDB
 │       ├── prisma/
 │       │   └── schema.prisma         # Full database schema
@@ -227,7 +230,10 @@ Create `.env` files in **two locations**:
 
 ```env
 DATABASE_URL="mongodb+srv://<user>:<password>@<cluster>.mongodb.net/empresa?retryWrites=true&w=majority"
-JWT_SECRET="any-secure-string-here"
+JWT_SECRET="a-secure-random-string-at-least-32-characters-long"
+
+# Redis (optional — only needed for production multi-instance SSE)
+# REDIS_URL="redis://default:password@host:6379"
 
 # Cloudflare R2 (file uploads — optional, uploads disabled if missing)
 R2_ACCOUNT_ID="your-cloudflare-account-id"
@@ -242,6 +248,8 @@ R2_PUBLIC_URL="https://your-bucket.r2.dev"  # optional, for public access
 ```env
 DATABASE_URL="mongodb+srv://<user>:<password>@<cluster>.mongodb.net/empresa?retryWrites=true&w=majority"
 ```
+
+> **⚠️ `JWT_SECRET` is mandatory** — the app intentionally crashes without it. Use at least 32 random characters. See `.env.example` for generation instructions.
 
 > **Important:** If an `apps/web/.env.local` file exists, it takes **priority** over `.env` in Next.js. Delete it or ensure its `DATABASE_URL` is correct.
 
@@ -337,44 +345,33 @@ npx vitest run --reporter=verbose
 
 ### Test Architecture
 
-Tests use a **shared Prisma mock** (`__tests__/helpers/mock-prisma.ts`) that stubs all database calls:
+Tests use two approaches depending on the domain:
+
+**Preferred: Stateful Prisma fake** (`__tests__/helpers/fake-prisma.ts`) — an in-memory fake with real `where`/`unique`/`$transaction` semantics. Assertions verify **state**, not mock calls:
 
 ```typescript
-import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
-vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
+import { fakePrisma as db } from "../helpers/fake-prisma";
+vi.mock("@empresa/db", () => ({ prisma: db }));
 
-beforeEach(() => {
-  resetPrismaMocks();
+beforeEach(() => { db.reset(); });
+
+it("creates a ticket", async () => {
+  await createTicket({ ... });
+  expect(db.all("ticket")[0]).toMatchObject({ status: "open" });
 });
 ```
 
-This means tests run without a database connection — fully isolated and fast.
+**Legacy: vi.fn() Prisma mock** (`__tests__/helpers/mock-prisma.ts`) — used by older message/tenant tests. New tests should use `fake-prisma.ts`.
 
-The real-time (SSE) tests live in `__tests__/sse/` and avoid asserting on mocks: they subscribe to the **real** event emitter, call the **real** route handler and read its stream. The hook tests run in `jsdom` (`// @vitest-environment jsdom`).
+**Auth mock helper** (`__tests__/helpers/mock-auth.ts`) — provides `mockRequireSession`, `mockGetSession`, and `resetAuthMocks` for Server Action tests.
+
+All tests run without a database connection — fully isolated and fast.
+
+The real-time (SSE) tests live in `__tests__/sse/` and test the **real** `ThreadEventChannel` interface with `InMemoryChannel` and `RedisChannel` adapters. The hook tests run in `jsdom` (`// @vitest-environment jsdom`).
 
 ### Current Coverage
 
-**476 tests** across 40 test files, organized by domain and layer:
-
-| Domain              | Schemas | Data Layer | Actions | Other      | Total |
-| ------------------- | ------- | ---------- | ------- | ---------- | ----- |
-| Tickets             | 19      | 31         | 20      | 15 (lifecycle) | 85 |
-| Messages            | 25      | 15         | 15      | —          | 55    |
-| Attachments         | 19      | 14         | —       | 36 (client, modal, uploader, cleanup) | 69 |
-| Storage / Upload    | —       | —          | —       | 31 (presign, keys, client, routes) | 31 |
-| Tenants             | 19      | 7          | 7       | —          | 33    |
-| Users               | 16      | 14         | —       | —          | 30    |
-| Real-time (SSE)     | —       | —          | —       | 73         | 73    |
-| Auth                | 4       | —          | 7       | 9 (password) | 20   |
-| Shared              | —       | —          | —       | 28 (pagination, search params) | 28 |
-| Thread UI           | —       | —          | —       | 6 (chat bubble) | 6  |
-| **Total**           |         |            |         |            | **476** |
-
-The 73 SSE tests cover: event emitter (11), SSE route handler (11), sync controller with polling fallback (19), `useThreadSSE` hook (8), actions emitting events (18) and an end-to-end integration of emitter + route + controller (6).
-
-The 69 attachment tests cover: Zod schemas (19), data layer with MongoDB null-vs-absent handling (14), browser upload client (25), image upload modal (11), file uploader component (11), and orphan cleanup (7).
-
-The 20 auth tests cover: login schema validation (4), login action with password verification (7), and bcrypt hash/verify unit tests (9).
+**560 tests** across 48 test files, organized by domain and layer. All tests pass with 0 `it.fails`.
 
 ---
 
@@ -409,34 +406,40 @@ All IDs use MongoDB native ObjectIds. The `Ticket.code` field (e.g., `tkt_001`) 
 
 ### Authentication
 
-- Login via Server Action → Zod validation → Prisma query → bcrypt password verification → JWT with `jose` → httpOnly cookie
+- **Session cookie signed with HMAC-SHA256** (Web Crypto API, edge-safe — no dependency on Node.js `crypto` or `jose`)
+- Token format: `base64url(JSON_payload).base64url(HMAC-SHA256(payload, secret))`
+- Login via Server Action → Zod validation → Prisma query → bcrypt password verification → HMAC-signed cookie
 - Passwords hashed with **bcrypt** (12 salt rounds, ~250ms per hash)
-- Generic error messages (`"E-mail ou senha incorretos"`) prevent user enumeration
-- Legacy users without `passwordHash` are treated as invalid credentials (defensive guard)
-- Middleware protects routes (`/dashboard`, `/chamados`, `/admin`)
-- Server Components use `getSession()` as a guard before rendering
+- Generic error messages (`"Credenciais inválidas"`) prevent user enumeration
+- `JWT_SECRET` is **mandatory** — missing secret crashes the app intentionally (no fallback)
+- **`requireSession()` guard** — centralized in `packages/auth/src/lib/actor.ts`, returns discriminated union `SessionResult`, optional role filter. All Server Actions use it for identity.
+- **Middleware** verifies HMAC signature + validates `tenantSlug` from token matches URL path
+- **Rate limiting** — sliding window in-memory (`checkRateLimit` with LOGIN/PRESIGN/CRITICAL presets in `@empresa/auth`; not yet integrated into actions/routes)
 - Roles: `admin` (administrators) and `client` (end users)
 
 ### Real-time Thread (SSE)
 
-The thread updates through **Server-Sent Events**. The SSE channel only *notifies* that something changed; the new state is fetched with the existing `pollThreadMessages` Server Action.
+The thread updates through **Server-Sent Events** with a pluggable channel architecture (see [ADR 0001](docs/adr/0001-sse-vs-websocket.md)). The SSE channel only *notifies* that something changed; the new state is fetched with the existing `pollThreadMessages` Server Action.
 
 ```
 Server Action / checkAutoClose ──persist──▶ notifyThread(ticketId, type)
                                                    │
-                                      ThreadEventEmitter (in-memory, per ticket)
+                                      ThreadEventChannel (InMemory or Redis adapter)
                                                    │
-                       GET /api/threads/[ticketId]/events  (text/event-stream)
+                       GET /api/threads/[ticketId]/events  (text/event-stream, authenticated)
                                                    │
                   createThreadSync (EventSource) ──▶ pollThreadMessages ──▶ React state
 ```
 
+- **Authenticated SSE endpoint** — `resolveThreadActor` validates admin session (cookie) or client thread token (`?token=`)
+- **`ThreadEventChannel` interface** with pluggable adapters: `InMemoryChannel` (dev/preview) and `RedisChannel` (production, currently a stub delegating to InMemory). Swap by setting `REDIS_URL`.
 - Events: `new_message`, `ticket_updated`, `thread_disconnected` (emitted only **after** the data is persisted)
 - Heartbeat every 30s keeps proxies from closing idle connections
+- `maxDuration = 60` on the SSE route (Vercel Pro; client auto-reconnects)
 - On every (re)connection the client fetches the current state, so nothing is lost while disconnected
 - Bursts of events are coalesced: one fetch at a time, plus one follow-up fetch
 - **Fallback:** after 3 consecutive SSE errors it falls back to polling every 5s and returns to SSE automatically when the connection reopens
-- The emitter is anchored on `globalThis`, so route handlers and Server Actions share the same instance even when bundled separately
+- The channel singleton is anchored on `globalThis`, so route handlers and Server Actions share the same instance even when bundled separately
 
 ### File Uploads (Cloudflare R2)
 
@@ -468,13 +471,15 @@ Browser                         Next.js API                    Cloudflare R2
 
 ### Server Actions
 
-All mutations follow the same pattern:
+All mutations follow the same pattern using `requireSession()` for identity:
 
 ```
-FormData → Field extraction → Zod validation → Prisma query (await) → revalidatePath → Typed response
+requireSession() → parseForm(formData) → Zod validation → Prisma query (await) → revalidatePath → ActionState response
 ```
 
-Client-side uses `useActionState` for loading feedback and per-field errors.
+- Identity (`tenantId`, author, role, slug) **always** comes from the session — never from FormData
+- Client-side uses `useActionState` for loading feedback and per-field errors
+- Shared utilities: `parseForm`, `validationErrorState`, `revalidateTenantPaths`, `notifyAndRevalidate`
 
 ---
 
@@ -531,10 +536,10 @@ The `@empresa/ui` package provides accessible headless components styled with Ta
 
 | Component | Description                                        |
 | --------- | -------------------------------------------------- |
-| `Button`  | Variants: default, destructive, outline, ghost     |
+| `Button`  | Variants: default, destructive, secondary, ghost, link |
 | `Input`   | With `error` prop and `aria-invalid` support       |
 | `Label`   | Based on Radix Label                               |
-| `Badge`   | Variants for status, priority, and subscription    |
+| `Badge`   | Semantic variants (info, warning, success, danger, neutral, purple, violet, yellow, slate, emerald) — domain-agnostic |
 | `Table`   | Semantic table (Table, TableHeader, TableRow, etc) |
 | `Dialog`  | Accessible modal based on Radix Dialog             |
 
@@ -544,19 +549,24 @@ The `@empresa/ui` package provides accessible headless components styled with Ta
 
 ```tsx
 import { Button, Badge, Input } from "@empresa/ui";
+import { ticketStatusVariant, priorityVariant } from "@/lib/shared/badge-variants";
 
-<Badge variant="open">Open</Badge>
-<Badge variant="high">High</Badge>
-<Badge variant="active">Active</Badge>
+<Badge variant={ticketStatusVariant("open")}>Aberto</Badge>
+<Badge variant={priorityVariant("high")}>Alta</Badge>
+<Badge variant="success">Active</Badge>
 ```
 
-### Badge Variants
+### Badge Architecture
 
-| Group        | Variants                                                      |
-| ------------ | ------------------------------------------------------------- |
-| Status       | `open`, `in_progress`, `resolved`, `pending_feedback`, `closed` |
-| Priority     | `high`, `medium`, `low`                                       |
-| Subscription | `active`, `inactive`, `trial`                                 |
+The Badge component exposes **semantic, domain-agnostic variants** (info, warning, success, danger, neutral, etc.). Domain values (ticket status, priority, subscription) are mapped to these variants by utility functions in `apps/web/lib/shared/badge-variants.ts`:
+
+| Function | Domain → Variant mapping |
+| --- | --- |
+| `ticketStatusVariant(status)` | open→info, in_progress→warning, resolved→success, pending_feedback→purple, closed→neutral |
+| `priorityVariant(priority)` | high→danger, medium→yellow, low→slate |
+| `subscriptionVariant(status)` | active→emerald, inactive→neutral, trial→violet |
+
+To add a new domain mapping, create a new function in `badge-variants.ts` — never add domain-specific variants to the UI package.
 
 ---
 
@@ -624,26 +634,27 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 - [x] 5 complete domains (tenants, tickets, users, messages, attachments)
 - [x] **Password hashing (bcrypt)** — hash/verify with 12 salt rounds, generic error messages, legacy user guard
 - [x] **Server-side pagination** — RSC with Suspense streaming for ticket lists
-- [x] 476 tests passing (strict TDD across 40 test files)
+- [x] **Password hashing (bcrypt)** — hash/verify with 12 salt rounds, generic error messages, legacy user guard
+- [x] **Server-side pagination** — RSC with Suspense streaming for ticket lists
+- [x] 🔒 **Security hardening (4 phases)** — HMAC-SHA256 session cookies (Web Crypto, edge-safe), `requireSession()` centralized guard, middleware with signature verification, rate limiting (in-memory sliding window)
+- [x] 📡 **Real-time hardening (5 phases)** — authenticated SSE endpoint, thread token expiration/revocation, `ThreadEventChannel` interface with InMemory/Redis adapters, Vercel `maxDuration`, ADR documented
+- [x] 🧹 **Code cleanup refactoring (6 phases)** — SSE singleton fix, dead code removal, full auth migration to `requireSession()`, Badge decoupled from domain, `ActionState` local to auth package, `$transaction` for ticket code atomicity, Button variant fixes
+- [x] 560 tests passing (strict TDD across 48 test files, 0 `it.fails`)
 
-### 🔒 Next: Security Hardening
+### 🔜 Next Steps (by priority)
 
-- [ ] **HMAC session signing** — sign session cookies with HMAC-SHA256 to prevent tampering
-- [ ] **actor.ts / requireSession** — centralized session guard with typed actor context
-- [ ] **Rate limiting** — protect Server Actions against brute-force
-- [ ] **Auth middleware** — enforce session validation at the middleware layer
-
-### 🔜 Next Steps
-
-- [ ] **Observability** — structured logging + metrics
-- [ ] **Real-time: Redis pub/sub** — swap in-memory `ThreadEventEmitter` for Redis to support multiple server instances
-- [ ] **Internationalization (i18n)** — next-intl for multi-language support
+- [ ] **Integrate rate limiting into actions/routes** — plug `checkRateLimit` with LOGIN/PRESIGN/CRITICAL presets into Server Actions and presign routes
+- [ ] **Implement real `RedisChannel`** — connect to Redis with ioredis for pub/sub between instances (stub and test contract already exist)
+- [ ] **Rate limiting via Redis** — migrate in-memory store to Redis for multi-instance support
+- [ ] **Abstractions** — `StorageProvider` interface over R2, `UserRole` in shared package
+- [ ] **Upload enhancements** — `HeadObject` validation on attach, allow message with attachment only, per-file progress
 - [ ] **E2E tests** — Playwright for critical flows
+- [ ] **CI/CD** — GitHub Actions with Turbo remote cache
+- [ ] **Internationalization (i18n)** — next-intl for multi-language support
+- [ ] **Observability** — structured logging + metrics
 
 ### 🔮 Future
 
-- [ ] **Real-time: authorize the SSE endpoint** — `/api/threads/[ticketId]/events` is unauthenticated (same as `pollThreadMessages`). It carries no message data, but anyone with a `ticketId` can see that there is activity. Validate the thread token or the admin session
-- [ ] CI/CD with GitHub Actions + Turbo remote cache
 - [ ] Granular role-based access control (RBAC)
 - [ ] Email notifications for thread updates
 
@@ -664,6 +675,8 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 | `Upload indisponível: variáveis do R2 não configuradas` | Missing R2 env vars | Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` in `apps/web/.env` |
 | `Can't resolve '@aws-sdk/client-s3'` | Missing S3 SDK | Run `npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner` in `apps/web` |
 | `Anexos Inválidos` on ticket/message submit | Attachment association failed | Likely a MongoDB null-vs-absent issue; ensure you're on the latest commit with the two-step find+filter fix |
+| App crashes without clear error | `JWT_SECRET` missing from `.env` | Add `JWT_SECRET` to `apps/web/.env` (min 32 chars) |
+| SSE not working across instances (production) | `REDIS_URL` missing | Add `REDIS_URL` to `apps/web/.env` (see `.env.example`) |
 | `data and hash arguments required` on login | Users in DB created before `passwordHash` field was added | Run `prisma generate && prisma db push && npm run db:seed` in `packages/db` to recreate users with hashed passwords |
 | `Unknown argument passwordHash` on seed | Prisma Client not regenerated after schema change | Run `npx prisma generate` in `packages/db` before seeding |
 

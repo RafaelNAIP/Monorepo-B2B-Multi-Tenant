@@ -1,6 +1,15 @@
-import type { ActionState } from "../../../../apps/web/lib/shared/action-state";
 import type { SessionPayload } from "./payload";
 import { getSession } from "./session";
+
+// ─── Tipo de estado genérico para Server Actions ────────────────
+// Definido aqui para evitar importação cross-package (apps/web → packages/auth).
+// O apps/web pode re-exportar ou manter sua própria cópia compatível.
+
+export interface ActionState {
+  success: boolean;
+  error: string | null;
+  fieldErrors: Record<string, string[]>;
+}
 
 // ─── Result types (discriminated union) ─────────────────────────
 

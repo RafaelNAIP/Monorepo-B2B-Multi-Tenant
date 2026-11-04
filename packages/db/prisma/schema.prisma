@@ -133,13 +133,15 @@ model Message {
 }
 
 model ThreadAccess {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  ticketId    String   @unique @db.ObjectId
-  tenantId    String   @db.ObjectId
-  token       String   @unique
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  ticketId    String    @unique @db.ObjectId
+  tenantId    String    @db.ObjectId
+  token       String    @unique
   clientName  String
   clientEmail String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+  revokedAt   DateTime?
 
   ticket Ticket @relation(fields: [ticketId], references: [id])
   tenant Tenant @relation(fields: [tenantId], references: [id])

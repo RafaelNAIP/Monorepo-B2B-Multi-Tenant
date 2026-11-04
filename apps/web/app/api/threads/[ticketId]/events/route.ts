@@ -1,12 +1,22 @@
-import {
-  threadEventEmitter,
-  type ThreadEvent,
-} from "@/lib/sse/thread-event-emitter";
+import { threadChannel } from "@/lib/sse/channel-singleton";
+import type { ThreadEvent } from "@/lib/sse/channel";
 import { HEARTBEAT_INTERVAL_MS, RECONNECT_DELAY_MS } from "@/lib/sse/constants";
+import { resolveThreadActor } from "@/lib/messages/actor";
 
 // SSE precisa do runtime Node (stream de longa duração) e nunca pode ser cacheado.
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+/**
+ * Duração máxima da função na Vercel (segundos).
+ * No Fluid Compute a instância segura múltiplas conexões concorrentes,
+ * mas o stream morre ao atingir esse limite — o createThreadSync reconecta
+ * automaticamente e revalida o ator na nova conexão.
+ *
+ * Pro: 60s (padrão) | Enterprise: até 900s.
+ * 60s é o máximo do plano Pro; subir quando o plano permitir.
+ */
+export const maxDuration = 60;
 
 const encoder = new TextEncoder();
 
@@ -17,6 +27,9 @@ function formatEvent(event: ThreadEvent): string {
 /**
  * Canal de notificação da thread. Não carrega dados da mensagem: apenas avisa
  * que algo mudou, e o cliente busca o estado atualizado via Server Action.
+ *
+ * Autenticação: sessão de admin (cookie) ou token de thread (query param `?token=`).
+ * EventSource do browser não suporta headers customizados, por isso o token vai na URL.
  */
 export async function GET(
   request: Request,
@@ -24,6 +37,19 @@ export async function GET(
 ): Promise<Response> {
   const { ticketId } = await params;
 
+  // ── Auth: sessão ou token de thread ──
+  const url = new URL(request.url);
+  const threadToken = url.searchParams.get("token");
+
+  const auth = await resolveThreadActor(ticketId, threadToken);
+  if (!auth.ok) {
+    return Response.json(
+      { error: auth.message },
+      { status: auth.status }
+    );
+  }
+
+  // ── Stream SSE ──
   let cleanup = () => {};
 
   const stream = new ReadableStream<Uint8Array>({
@@ -62,7 +88,7 @@ export async function GET(
       }
       request.signal.addEventListener("abort", onAbort);
 
-      unsubscribe = threadEventEmitter.subscribe(ticketId, (event) =>
+      unsubscribe = threadChannel.subscribe(ticketId, (event) =>
         send(formatEvent(event))
       );
       heartbeat = setInterval(() => send(": keep-alive\n\n"), HEARTBEAT_INTERVAL_MS);

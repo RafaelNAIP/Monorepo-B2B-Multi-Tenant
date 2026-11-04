@@ -1,5 +1,6 @@
 "use server";
 
+import { requireSession } from "@empresa/auth";
 import {
   validationErrorState,
   type ActionState,
@@ -12,6 +13,10 @@ export async function updateThemeAction(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const result = await requireSession({ role: "admin" });
+  if (!result.ok) return result.errorState;
+  const { session } = result;
+
   const raw = {
     companyName: formData.get("companyName") as string,
     primaryColor: formData.get("primaryColor") as string,
@@ -25,9 +30,8 @@ export async function updateThemeAction(
     return validationErrorState(parsed.error);
   }
 
-  const tenantId = formData.get("tenantId") as string;
-
-  const updated = await updateTenantTheme(tenantId, {
+  // tenantId vem da sessão, nunca do FormData
+  const updated = await updateTenantTheme(session.tenantId, {
     companyName: parsed.data.companyName,
     theme: {
       primaryColor: parsed.data.primaryColor,

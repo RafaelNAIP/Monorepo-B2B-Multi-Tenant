@@ -2,8 +2,12 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
 import { makeFormData } from "../helpers/form-data";
+import { mockRequireSession, resetAuthMocks } from "../helpers/mock-auth";
 
 vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
+vi.mock("@empresa/auth", () => ({
+  requireSession: (...args: unknown[]) => mockRequireSession(...args),
+}));
 
 import { updateThemeAction } from "../../lib/tenants/actions";
 import { INITIAL_ACTION_STATE } from "../../lib/shared/action-state";
@@ -12,11 +16,12 @@ const initialState = INITIAL_ACTION_STATE;
 
 beforeEach(() => {
   resetPrismaMocks();
+  resetAuthMocks();
 });
 
 describe("updateThemeAction", () => {
+  // tenantId NÃO vai no FormData — vem da sessão (mockAdminSession.tenantId = "t_01")
   const validData = {
-    tenantId: "t_01",
     companyName: "Empresa Atualizada",
     primaryColor: "#10b981",
     borderRadius: "12",
@@ -125,13 +130,28 @@ describe("updateThemeAction", () => {
       new Error("Record to update not found.")
     );
 
-    const fd = makeFormData({
-      ...validData,
-      tenantId: "t_99",
-    });
+    const fd = makeFormData(validData);
     const result = await updateThemeAction(initialState, fd);
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("não encontrado");
+  });
+
+  it("retorna erro quando não há sessão autenticada", async () => {
+    mockRequireSession.mockResolvedValue({
+      ok: false,
+      errorState: {
+        success: false,
+        error: "Sessão expirada ou inválida. Faça login novamente.",
+        fieldErrors: {},
+      },
+    });
+
+    const fd = makeFormData(validData);
+    const result = await updateThemeAction(initialState, fd);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Sessão expirada");
+    expect(prismaMock.tenant.update).not.toHaveBeenCalled();
   });
 });

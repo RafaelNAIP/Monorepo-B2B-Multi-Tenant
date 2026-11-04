@@ -33,7 +33,8 @@ export function ClientThreadView({
 }: ClientThreadViewProps) {
   const { messages: liveMessages, ticket: liveTicket } = useThreadSSE(
     initialTicket,
-    initialMessages
+    initialMessages,
+    threadToken,
   );
 
   const isActive =

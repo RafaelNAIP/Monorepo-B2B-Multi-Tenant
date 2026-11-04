@@ -14,7 +14,11 @@ import { createThreadSync } from "@/lib/sse/thread-sync";
  * Action `pollThreadMessages`. Se o SSE ficar indisponível, cai para polling
  * de segurança e volta ao SSE sozinho (ver `createThreadSync`).
  */
-export function useThreadSSE(initialTicket: Ticket, initialMessages: Message[]) {
+export function useThreadSSE(
+  initialTicket: Ticket,
+  initialMessages: Message[],
+  threadToken?: string | null,
+) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [ticket, setTicket] = useState<Ticket>(initialTicket);
 
@@ -23,7 +27,7 @@ export function useThreadSSE(initialTicket: Ticket, initialMessages: Message[]) 
   useEffect(() => {
     const sync = createThreadSync({
       ticketId,
-      fetchSnapshot: () => pollThreadMessages(ticketId),
+      fetchSnapshot: () => pollThreadMessages(ticketId, threadToken),
       onSnapshot: (result) => {
         setMessages(result.messages);
         if (result.ticket) setTicket(result.ticket);

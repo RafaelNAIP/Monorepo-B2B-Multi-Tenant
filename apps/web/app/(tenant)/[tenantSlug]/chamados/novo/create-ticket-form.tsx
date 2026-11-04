@@ -144,7 +144,7 @@ export function CreateTicketForm({
         />
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={() => setModalOpen(true)}
         >
           📎 Anexar imagens{attachedFiles.length > 0 ? ` (${attachedFiles.length})` : ""}

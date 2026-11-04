@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { requireSession } from "@empresa/auth";
 
 import {
   validationErrorState,
@@ -9,7 +10,7 @@ import {
 
 import { createTicketSchema, assignTicketSchema } from "./schemas";
 import { createTicket, assignTicket, disconnectTicket } from "./data";
-import { notifyThread } from "@/lib/sse/thread-event-emitter";
+import { notifyThread } from "@/lib/sse/channel-singleton";
 import { ATTACHMENTS_INVALID } from "@/lib/attachments/data";
 import { ATTACHMENTS_INVALID_MESSAGE, parseAttachmentKeysField } from "@/lib/attachments/form";
 
@@ -17,6 +18,10 @@ export async function createTicketAction(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const result = await requireSession();
+  if (!result.ok) return result.errorState;
+  const { session } = result;
+
   const raw = {
     title: formData.get("title") as string,
     category: formData.get("category") as string,
@@ -30,16 +35,14 @@ export async function createTicketAction(
     return validationErrorState(parsed.error);
   }
 
-  const tenantId = formData.get("tenantId") as string;
-  const requester = formData.get("requester") as string;
-
+  // tenantId e requester vêm da sessão, nunca do FormData
   try {
     await createTicket({
       title: parsed.data.title,
       category: parsed.data.category,
       description: parsed.data.description,
-      tenantId,
-      requester,
+      tenantId: session.tenantId,
+      requester: session.name,
       attachmentKeys: parsed.data.attachmentKeys,
     });
   } catch (error) {
@@ -67,6 +70,10 @@ export async function assignTicketAction(
   _prevState: AssignTicketActionState,
   formData: FormData
 ): Promise<AssignTicketActionState> {
+  const authResult = await requireSession({ role: "admin" });
+  if (!authResult.ok) return { success: false, error: authResult.errorState.error };
+  const { session } = authResult;
+
   const raw = {
     ticketId: formData.get("ticketId") as string,
     adminUserId: formData.get("adminUserId") as string,
@@ -81,7 +88,6 @@ export async function assignTicketAction(
     };
   }
 
-  const tenantSlug = formData.get("tenantSlug") as string;
   const result = await assignTicket(parsed.data.ticketId, parsed.data.adminUserId);
 
   if (!result) {
@@ -93,9 +99,7 @@ export async function assignTicketAction(
 
   notifyThread(parsed.data.ticketId, "ticket_updated");
 
-  if (tenantSlug) {
-    revalidatePath(`/${tenantSlug}/admin/chamados`);
-  }
+  revalidatePath(`/${session.tenantSlug}/admin/chamados`);
 
   return {
     success: true,
@@ -109,8 +113,11 @@ export async function disconnectTicketAction(
   _prevState: AssignTicketActionState,
   formData: FormData
 ): Promise<AssignTicketActionState> {
+  const authResult = await requireSession({ role: "admin" });
+  if (!authResult.ok) return { success: false, error: authResult.errorState.error };
+  const { session } = authResult;
+
   const ticketId = formData.get("ticketId") as string;
-  const tenantSlug = formData.get("tenantSlug") as string;
 
   if (!ticketId) {
     return {
@@ -130,10 +137,8 @@ export async function disconnectTicketAction(
 
   notifyThread(ticketId, "thread_disconnected");
 
-  if (tenantSlug) {
-    revalidatePath(`/${tenantSlug}/admin/chamados`);
-    revalidatePath(`/${tenantSlug}/admin/chamados/${ticketId}`);
-  }
+  revalidatePath(`/${session.tenantSlug}/admin/chamados`);
+  revalidatePath(`/${session.tenantSlug}/admin/chamados/${ticketId}`);
 
   return {
     success: true,

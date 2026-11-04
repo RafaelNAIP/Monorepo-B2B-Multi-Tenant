@@ -24,12 +24,6 @@ export default async function AuthPage({ params }: AuthPageProps) {
         </div>
 
         <LoginForm tenantSlug={tenantSlug} />
-
-        <div className="mt-6 rounded border border-[var(--color-border)] bg-[var(--color-muted)] p-3 text-xs text-[var(--color-muted-foreground)]">
-          <p className="font-semibold mb-1">Credenciais de teste:</p>
-          <p>Admin: admin@demo.com / 12345678</p>
-          <p>Cliente: client@demo.com / 12345678</p>
-        </div>
       </div>
     </div>
   );

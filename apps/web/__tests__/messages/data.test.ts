@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
 
 vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
+vi.mock("../../lib/storage/delete", () => ({ deleteFile: vi.fn() }));
 
 import {
   getMessagesByTicket,
@@ -10,6 +11,7 @@ import {
   getThreadAccessByToken,
   getThreadAccessByTicket,
   createThreadAccess,
+  revokeThreadAccess,
 } from "../../lib/messages/data";
 
 // ─── Fixtures ────────────────────────────────────────────────────────
@@ -261,6 +263,72 @@ describe("data layer de mensagens", () => {
 
       const found = await getThreadAccessByToken("token_invalido");
       expect(found).toBeNull();
+    });
+
+    it("retorna null para token expirado", async () => {
+      const expired = {
+        ...MOCK_THREAD_ACCESS,
+        expiresAt: new Date("2020-01-01T00:00:00Z"),
+        revokedAt: null,
+      };
+      prismaMock.threadAccess.findFirst.mockResolvedValue(expired);
+
+      const found = await getThreadAccessByToken("abc123token456def789ghi012jkl345");
+      expect(found).toBeNull();
+    });
+
+    it("retorna null para token revogado", async () => {
+      const revoked = {
+        ...MOCK_THREAD_ACCESS,
+        expiresAt: null,
+        revokedAt: new Date("2024-06-01T00:00:00Z"),
+      };
+      prismaMock.threadAccess.findFirst.mockResolvedValue(revoked);
+
+      const found = await getThreadAccessByToken("abc123token456def789ghi012jkl345");
+      expect(found).toBeNull();
+    });
+
+    it("retorna acesso quando expiresAt é no futuro e revokedAt é null", async () => {
+      const valid = {
+        ...MOCK_THREAD_ACCESS,
+        expiresAt: new Date(Date.now() + 86400_000), // +24h
+        revokedAt: null,
+      };
+      prismaMock.threadAccess.findFirst.mockResolvedValue(valid);
+
+      const found = await getThreadAccessByToken("abc123token456def789ghi012jkl345");
+      expect(found).toBeDefined();
+      expect(found!.ticketId).toBe("tkt_001");
+    });
+
+    it("retorna acesso quando expiresAt e revokedAt são ambos null (sem expiração)", async () => {
+      const noExpiry = {
+        ...MOCK_THREAD_ACCESS,
+        expiresAt: null,
+        revokedAt: null,
+      };
+      prismaMock.threadAccess.findFirst.mockResolvedValue(noExpiry);
+
+      const found = await getThreadAccessByToken("abc123token456def789ghi012jkl345");
+      expect(found).toBeDefined();
+    });
+  });
+
+  // ─── revokeThreadAccess ─────────────────────────────────────────
+
+  describe("revokeThreadAccess", () => {
+    it("marca o token como revogado com a data atual", async () => {
+      const revoked = { ...MOCK_THREAD_ACCESS, revokedAt: new Date() };
+      prismaMock.threadAccess.update.mockResolvedValue(revoked);
+
+      const result = await revokeThreadAccess("abc123token456def789ghi012jkl345");
+
+      expect(prismaMock.threadAccess.update).toHaveBeenCalledWith({
+        where: { token: "abc123token456def789ghi012jkl345" },
+        data: { revokedAt: expect.any(Date) },
+      });
+      expect(result.revokedAt).toBeDefined();
     });
   });
 

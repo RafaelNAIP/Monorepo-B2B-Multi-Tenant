@@ -1,5 +1,7 @@
 # Monorepo B2B Multi-Tenant
 
+[![CI](https://github.com/RafaelNAIP/monorepo-b2b-multi-tenant/actions/workflows/ci.yml/badge.svg)](https://github.com/RafaelNAIP/monorepo-b2b-multi-tenant/actions/workflows/ci.yml)
+
 A modular B2B multi-tenant corporate web platform featuring an admin panel, client portal, and a shared UI component package (decoupled Design System), running on a modern monorepo setup.
 
 > **Status:** Active MVP development — Prisma + MongoDB, HMAC-SHA256 auth, SSE real-time, Cloudflare R2 uploads. 598 tests passing.

@@ -1,0 +1,128 @@
+name: CI
+
+# Integração contínua do monorepo (npm workspaces).
+# Níveis:
+#   - Todo push / PR  -> test + lint + typecheck (feedback rápido no dia a dia da dev)
+#   - PR/push p/ main -> também build do Next (gate de produção)
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Cancela execuções antigas do mesmo branch/PR quando chega um push novo.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Testes (núcleo, bloqueante). Usa o fake-prisma em memória -> não precisa de
+  # banco nem de `prisma generate`.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Testes (vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Rodar testes
+        run: npm test
+
+  # ---------------------------------------------------------------------------
+  # Lint (next lint). Não-bloqueante na 1ª versão: o app ainda não tem config
+  # de ESLint versionada, então deixamos informativo até confirmar que passa
+  # limpo. Para tornar bloqueante, remova o `continue-on-error`.
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint (next lint)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Rodar lint
+        run: npm run lint --workspace @empresa/web
+
+  # ---------------------------------------------------------------------------
+  # Type-check (tsc). Não-bloqueante: há erros de tipos pré-existentes
+  # documentados (Prisma client gerado só parcialmente no ambiente). Precisa do
+  # client do Prisma gerado para os tipos de @empresa/db.
+  # Para tornar bloqueante depois de zerar a baseline, remova o
+  # `continue-on-error`.
+  # ---------------------------------------------------------------------------
+  typecheck:
+    name: Type-check (tsc)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar Prisma Client
+        run: npm run db:generate --workspace @empresa/db
+
+      - name: Verificar tipos (apps/web)
+        run: npx tsc --noEmit -p apps/web/tsconfig.json
+
+  # ---------------------------------------------------------------------------
+  # Build do Next (bloqueante) — SÓ quando o alvo é a main (gate de produção).
+  # Roda em push na main e em PR cujo base é main. O build não conecta no banco,
+  # mas precisa do Prisma client gerado e de variáveis com formato válido.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build (Next — gate da main)
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && github.base_ref == 'main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar Prisma Client
+        run: npm run db:generate --workspace @empresa/db
+
+      - name: Build do app web
+        working-directory: apps/web
+        # Valores dummy apenas para o build do Next passar. O build NÃO conecta
+        # no banco/Redis/R2 — só exige que as variáveis existam com formato
+        # válido. Segredos reais ficam na Vercel (deploy nativo).
+        env:
+          DATABASE_URL: "mongodb://localhost:27017/ci?replicaSet=rs0"
+          JWT_SECRET: "ci-dummy-secret-com-mais-de-32-caracteres-para-build"
+        run: npm run build

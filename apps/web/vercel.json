@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "cd ../.. && npm install",
+  "buildCommand": "cd ../.. && npm run db:generate -w @empresa/db && npm run build -w @empresa/web",
+  "crons": [
+    { "path": "/api/attachments/cleanup", "schedule": "0 3 * * *" }
+  ]
+}

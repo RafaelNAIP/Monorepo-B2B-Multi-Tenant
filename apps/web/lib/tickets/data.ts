@@ -10,21 +10,10 @@ import {
 import { notifyThread } from "@/lib/sse/channel-singleton";
 import type { TicketCategory, TicketStatus } from "./constants";
 
-// ─── Category mapping (Portuguese display → Prisma enum) ─────────
+import { TICKET_CATEGORY } from "./constants";
 
-const CATEGORY_TO_ENUM: Record<string, string> = {
-  "Suporte Técnico": "suporte_tecnico",
-  "Financeiro": "financeiro",
-  "TI": "ti",
-  "RH": "rh",
-  "Comercial": "comercial",
-};
-
-const CATEGORY_ENUMS = Object.values(CATEGORY_TO_ENUM);
-
-function categoryToEnum(cat: string): string {
-  return CATEGORY_TO_ENUM[cat] ?? cat;
-}
+/** Valores do enum Prisma, para buscas por categoria. */
+const CATEGORY_ENUMS = Object.keys(TICKET_CATEGORY);
 
 // ─── Filters ──────────────────────────────────────────────────────
 
@@ -139,9 +128,9 @@ export async function createTicket(input: {
       code,
       title: input.title,
       requester: input.requester,
-      status: "open",
-      priority: "medium",
-      category: categoryToEnum(input.category),
+      status: "open" as const,
+      priority: "medium" as const,
+      category: input.category,
       description: input.description,
       tenantId: input.tenantId,
     };

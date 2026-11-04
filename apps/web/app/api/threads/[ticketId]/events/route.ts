@@ -1,6 +1,11 @@
 import { threadChannel } from "@/lib/sse/channel-singleton";
 import type { ThreadEvent } from "@/lib/sse/channel";
-import { HEARTBEAT_INTERVAL_MS, RECONNECT_DELAY_MS } from "@/lib/sse/constants";
+import {
+  HEARTBEAT_INTERVAL_MS,
+  RECONNECT_DELAY_MS,
+  REMOTE_SYNC_INTERVAL_MS,
+} from "@/lib/sse/constants";
+import { startRemoteSync } from "@/lib/sse/remote-sync";
 import { resolveThreadActor } from "@/lib/messages/actor";
 
 // SSE precisa do runtime Node (stream de longa duração) e nunca pode ser cacheado.
@@ -57,6 +62,7 @@ export async function GET(
       let closed = false;
       let heartbeat: ReturnType<typeof setInterval> | undefined;
       let unsubscribe: (() => void) | undefined;
+      let stopRemote: () => void = () => {};
 
       const send = (chunk: string) => {
         if (closed) return;
@@ -72,6 +78,7 @@ export async function GET(
         closed = true;
         if (heartbeat) clearInterval(heartbeat);
         unsubscribe?.();
+        stopRemote();
         request.signal.removeEventListener("abort", onAbort);
         try {
           controller.close();
@@ -90,6 +97,13 @@ export async function GET(
 
       unsubscribe = threadChannel.subscribe(ticketId, (event) =>
         send(formatEvent(event))
+      );
+      // Eventos publicados por outras instâncias (só com Redis configurado)
+      stopRemote = startRemoteSync(
+        threadChannel,
+        ticketId,
+        (event) => send(formatEvent(event)),
+        { intervalMs: REMOTE_SYNC_INTERVAL_MS, sinceTs: Date.now() }
       );
       heartbeat = setInterval(() => send(": keep-alive\n\n"), HEARTBEAT_INTERVAL_MS);
 

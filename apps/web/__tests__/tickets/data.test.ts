@@ -398,7 +398,7 @@ describe("data layer de tickets", () => {
 
       const ticket = await createTicket({
         title: "Novo chamado de teste",
-        category: "TI",
+        category: "ti",
         description: "Descrição detalhada do problema encontrado.",
         tenantId: "t_01",
         requester: "Usuário Teste",
@@ -437,7 +437,7 @@ describe("data layer de tickets", () => {
 
       const ticket = await createTicket({
         title: "Chamado rastreável",
-        category: "Comercial",
+        category: "comercial",
         description: "Deve ser encontrável após criação pelo ID.",
         tenantId: "t_01",
         requester: "Usuário Rastreável",
@@ -452,7 +452,7 @@ describe("data layer de tickets", () => {
   describe("createTicket com anexos", () => {
     const base = {
       title: "Chamado com anexos",
-      category: "TI" as const,
+      category: "ti" as const,
       description: "Descrição detalhada do problema encontrado.",
       tenantId: "t_01",
       requester: "Usuário Teste",

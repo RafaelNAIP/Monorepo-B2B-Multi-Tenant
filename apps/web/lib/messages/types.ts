@@ -19,6 +19,6 @@ export interface Message {
   senderRole: SenderRole;
   senderName: string;
   content: string;
-  createdAt: string;
+  createdAt: Date;
   attachments?: MessageAttachment[];
 }

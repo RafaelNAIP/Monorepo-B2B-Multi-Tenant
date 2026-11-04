@@ -10,7 +10,7 @@ import { getAttachmentsByTicket } from "@/lib/attachments/data";
 import { getThreadAccessByTicket } from "@/lib/messages/data";
 import { getTenantBySlug } from "@/lib/tenants/data";
 import { getUserById } from "@/lib/users/data";
-import { TICKET_STATUS } from "@/lib/tickets/constants";
+import { TICKET_STATUS, TICKET_CATEGORY } from "@/lib/tickets/constants";
 import { ticketStatusVariant } from "@/lib/shared/badge-variants";
 import { Badge } from "@empresa/ui";
 
@@ -83,7 +83,7 @@ export default async function AdminTicketDetailPage({
               {ticket.title}
             </h1>
             <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-              Solicitante: {ticket.requester} · Categoria: {ticket.category}
+              Solicitante: {ticket.requester} · Categoria: {TICKET_CATEGORY[ticket.category]}
             </p>
             {ticket.relatedTicketId && (
               <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">

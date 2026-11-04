@@ -12,5 +12,5 @@ export interface Tenant {
   slug: string;
   subscription: SubscriptionStatus;
   theme: TenantTheme;
-  createdAt: string;
+  createdAt: Date;
 }

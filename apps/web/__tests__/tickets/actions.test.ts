@@ -34,7 +34,7 @@ const assignInitialState = {
 
 const validCreateFields = {
   title: "Problema no sistema de pagamentos",
-  category: "Financeiro",
+  category: "financeiro",
   description:
     "O sistema de pagamentos não está processando boletos corretamente.",
 };

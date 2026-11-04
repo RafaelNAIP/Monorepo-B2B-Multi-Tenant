@@ -11,3 +11,11 @@ export {
   type RateLimitConfig,
   type RateLimitResult,
 } from "./lib/rate-limit";
+export {
+  createRedisRateLimiter,
+  getRateLimiter,
+  type AsyncRateLimiter,
+  type RateLimitRedisClient,
+  type RateLimitPipeline,
+} from "./lib/rate-limit-redis";
+export { getRedis, isRedisConfigured } from "./lib/redis-client";

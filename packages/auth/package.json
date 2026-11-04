@@ -9,16 +9,19 @@
     "./schemas": "./src/schemas/index.ts",
     "./actions": "./src/actions/index.ts",
     "./constants": "./src/lib/constants.ts",
-    "./token": "./src/lib/token.ts"
+    "./token": "./src/lib/token.ts",
+    "./rate-limit": "./src/lib/rate-limit-redis.ts",
+    "./redis": "./src/lib/redis-client.ts"
   },
   "dependencies": {
     "@empresa/db": "*",
+    "@upstash/redis": "^1.41.0",
     "bcrypt": "^6.0.0"
   },
   "peerDependencies": {
     "next": "^15.0.0",
     "react": "^19.0.0",
-    "zod": "^3.0.0"
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0"

@@ -12,7 +12,7 @@ const base: Message = {
   senderRole: "client",
   senderName: "Maria",
   content: "Segue o print do erro",
-  createdAt: "2026-10-30T12:00:00.000Z",
+  createdAt: new Date("2026-10-30T12:00:00.000Z"),
 };
 
 const image = { id: "a1", fileName: "erro.png", fileKey: "t1/tk1/a.png", fileSize: 2048, mimeType: "image/png" };

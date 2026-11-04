@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { attachmentKeysSchema } from "@/lib/attachments/schemas";
 
-import { TICKET_CATEGORIES, TICKET_STATUS, type TicketStatus } from "./constants";
+import { TICKET_CATEGORY_VALUES, TICKET_STATUS, type TicketStatus } from "./constants";
 
 const TICKET_STATUS_VALUES = Object.keys(TICKET_STATUS) as [
   TicketStatus,
@@ -15,7 +15,7 @@ export const createTicketSchema = z.object({
     .min(5, "Título deve ter ao menos 5 caracteres")
     .max(120, "Título deve ter no máximo 120 caracteres")
     .trim(),
-  category: z.enum(TICKET_CATEGORIES, {
+  category: z.enum(TICKET_CATEGORY_VALUES, {
     errorMap: () => ({ message: "Selecione uma categoria" }),
   }),
   description: z

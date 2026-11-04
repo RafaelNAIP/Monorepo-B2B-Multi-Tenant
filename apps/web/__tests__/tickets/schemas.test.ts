@@ -9,7 +9,7 @@ import {
 describe("createTicketSchema", () => {
   const validInput = {
     title: "Problema no sistema",
-    category: "TI" as const,
+    category: "ti" as const,
     description: "Descrição detalhada do problema encontrado no sistema.",
   };
 

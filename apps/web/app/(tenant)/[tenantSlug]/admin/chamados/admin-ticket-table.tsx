@@ -19,7 +19,7 @@ import type { Ticket } from "@/lib/tickets/types";
 import { ticketStatusVariant, priorityVariant } from "@/lib/shared/badge-variants";
 import { FilterSelect } from "@/components/filter-select";
 import { useTicketFilters } from "@/hooks/use-ticket-filters";
-import { TICKET_STATUS, TICKET_PRIORITY } from "@/lib/tickets/constants";
+import { TICKET_STATUS, TICKET_PRIORITY, TICKET_CATEGORY } from "@/lib/tickets/constants";
 import type { TicketStatus, TicketPriority } from "@/lib/tickets/constants";
 import {
   assignTicketAction,
@@ -140,7 +140,7 @@ export function AdminTicketTable({
                     {ticket.requester}
                   </TableCell>
                   <TableCell className="text-sm text-[var(--color-muted-foreground)]">
-                    {ticket.category}
+                    {TICKET_CATEGORY[ticket.category]}
                   </TableCell>
                   <TableCell>
                     <Badge variant={ticketStatusVariant(ticket.status)}>

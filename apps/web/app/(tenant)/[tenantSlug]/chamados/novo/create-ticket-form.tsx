@@ -10,7 +10,7 @@ import type { UploadedFile } from "@/lib/attachments/client";
 
 import { createTicketAction } from "@/lib/tickets/actions";
 import { INITIAL_ACTION_STATE } from "@/lib/shared/action-state";
-import { TICKET_CATEGORIES } from "@/lib/tickets/constants";
+import { TICKET_CATEGORY, TICKET_CATEGORY_VALUES } from "@/lib/tickets/constants";
 
 interface CreateTicketFormProps {
   tenantSlug: string;
@@ -92,9 +92,9 @@ export function CreateTicketForm({
           }`}
         >
           <option value="">Selecione uma categoria</option>
-          {TICKET_CATEGORIES.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat}
+          {TICKET_CATEGORY_VALUES.map((key) => (
+            <option key={key} value={key}>
+              {TICKET_CATEGORY[key]}
             </option>
           ))}
         </select>

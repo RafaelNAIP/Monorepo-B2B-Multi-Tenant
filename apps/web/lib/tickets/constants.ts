@@ -16,12 +16,18 @@ export const TICKET_PRIORITY = {
 
 export type TicketPriority = keyof typeof TICKET_PRIORITY;
 
-export const TICKET_CATEGORIES = [
-  "Suporte Técnico",
-  "Financeiro",
-  "TI",
-  "RH",
-  "Comercial",
-] as const;
+export const TICKET_CATEGORY = {
+  suporte_tecnico: "Suporte Técnico",
+  financeiro: "Financeiro",
+  ti: "TI",
+  rh: "RH",
+  comercial: "Comercial",
+} as const;
 
-export type TicketCategory = (typeof TICKET_CATEGORIES)[number];
+export type TicketCategory = keyof typeof TICKET_CATEGORY;
+
+/** Tupla dos valores do enum para uso em z.enum() */
+export const TICKET_CATEGORY_VALUES = Object.keys(TICKET_CATEGORY) as [
+  TicketCategory,
+  ...TicketCategory[],
+];

@@ -502,13 +502,14 @@ describe("data layer de tickets", () => {
       );
     });
 
-    it("sem anexos não abre transação nem consulta anexos", async () => {
+    it("sem anexos usa transação (atomicidade do code) mas não consulta anexos", async () => {
       prismaMock.ticket.count.mockResolvedValue(0);
       prismaMock.ticket.create.mockResolvedValue({ id: "T9", tenantId: "t_01" });
 
       await createTicket({ ...base, attachmentKeys: [] });
 
-      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      expect(prismaMock.$transaction).toHaveBeenCalledOnce();
+      expect(prismaMock.attachment.findMany).not.toHaveBeenCalled();
       expect(prismaMock.attachment.updateMany).not.toHaveBeenCalled();
     });
   });

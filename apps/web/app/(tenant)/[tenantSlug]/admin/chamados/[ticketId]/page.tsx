@@ -11,6 +11,7 @@ import { getThreadAccessByTicket } from "@/lib/messages/data";
 import { getTenantBySlug } from "@/lib/tenants/data";
 import { getUserById } from "@/lib/users/data";
 import { TICKET_STATUS } from "@/lib/tickets/constants";
+import { ticketStatusVariant } from "@/lib/shared/badge-variants";
 import { Badge } from "@empresa/ui";
 
 import { AttachmentList } from "@/components/shared/attachment-list";
@@ -96,7 +97,7 @@ export default async function AdminTicketDetailPage({
               </p>
             )}
           </div>
-          <Badge variant={ticket.status as "open" | "in_progress" | "resolved" | "pending_feedback" | "closed"}>
+          <Badge variant={ticketStatusVariant(ticket.status)}>
             {TICKET_STATUS[ticket.status]}
           </Badge>
         </div>

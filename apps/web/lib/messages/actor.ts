@@ -4,7 +4,7 @@ import { getThreadAccessByToken } from "./data";
 // ─── Types ──────────────────────────────────────────────────────
 
 export type ThreadActor =
-  | { kind: "admin"; userId: string; tenantId: string }
+  | { kind: "admin"; userId: string; tenantId: string; name: string; tenantSlug: string }
   | { kind: "client"; token: string; tenantId: string; clientName: string };
 
 export type ResolveResult =
@@ -35,6 +35,8 @@ export async function resolveThreadActor(
         kind: "admin",
         userId: session.sub,
         tenantId: session.tenantId,
+        name: session.name,
+        tenantSlug: session.tenantSlug,
       },
     };
   }

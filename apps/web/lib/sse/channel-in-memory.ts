@@ -1,5 +1,4 @@
-import type { ThreadEventChannel } from "./channel";
-import type { ThreadEvent, ThreadEventCallback } from "./thread-event-emitter";
+import type { ThreadEventChannel, ThreadEvent, ThreadEventCallback } from "./channel";
 
 /**
  * Canal de eventos em memória. Funciona para um único processo / instância.

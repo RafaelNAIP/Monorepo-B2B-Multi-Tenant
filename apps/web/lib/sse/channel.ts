@@ -1,5 +1,22 @@
-import type { ThreadEvent, ThreadEventCallback, ThreadEventType } from "./thread-event-emitter";
-import { THREAD_EVENT_TYPES } from "./thread-event-emitter";
+// ─── Tipos canônicos de eventos de thread ───────────────────────
+
+export const THREAD_EVENT_TYPES = [
+  "new_message",
+  "ticket_updated",
+  "thread_disconnected",
+] as const;
+
+export type ThreadEventType = (typeof THREAD_EVENT_TYPES)[number];
+
+export interface ThreadEvent {
+  type: ThreadEventType;
+  ticketId: string;
+  timestamp: number;
+}
+
+export type ThreadEventCallback = (event: ThreadEvent) => void;
+
+// ─── Contrato do canal ──────────────────────────────────────────
 
 /**
  * Contrato do canal de eventos de thread.
@@ -21,6 +38,3 @@ export interface ThreadEventChannel {
   /** Número de inscritos locais naquele ticket (para testes e métricas). */
   subscriberCount(ticketId: string): number;
 }
-
-export { THREAD_EVENT_TYPES };
-export type { ThreadEvent, ThreadEventCallback, ThreadEventType };

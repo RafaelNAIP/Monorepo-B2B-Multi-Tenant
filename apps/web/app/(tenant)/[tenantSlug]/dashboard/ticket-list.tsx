@@ -12,6 +12,7 @@ import {
 } from "@empresa/ui";
 
 import type { Ticket } from "@/lib/tickets/types";
+import { ticketStatusVariant, priorityVariant } from "@/lib/shared/badge-variants";
 import { FilterSelect } from "@/components/filter-select";
 import { useTicketFilters } from "@/hooks/use-ticket-filters";
 import { TICKET_STATUS, TICKET_PRIORITY } from "@/lib/tickets/constants";
@@ -82,12 +83,12 @@ export function TicketList({ tickets, initialStatus, initialSearch }: TicketList
                 <TableCell className="font-medium">{ticket.title}</TableCell>
                 <TableCell>{ticket.requester}</TableCell>
                 <TableCell>
-                  <Badge variant={ticket.status}>
+                  <Badge variant={ticketStatusVariant(ticket.status)}>
                     {TICKET_STATUS[ticket.status]}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={ticket.priority}>
+                  <Badge variant={priorityVariant(ticket.priority)}>
                     {TICKET_PRIORITY[ticket.priority]}
                   </Badge>
                 </TableCell>

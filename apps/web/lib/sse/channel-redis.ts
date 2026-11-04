@@ -1,6 +1,5 @@
 import { InMemoryChannel } from "./channel-in-memory";
-import type { ThreadEventChannel } from "./channel";
-import type { ThreadEvent, ThreadEventCallback } from "./thread-event-emitter";
+import type { ThreadEventChannel, ThreadEvent, ThreadEventCallback } from "./channel";
 
 /**
  * Canal de eventos com Redis pub/sub.

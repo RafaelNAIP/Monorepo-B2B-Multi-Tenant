@@ -1,5 +1,4 @@
-import type { ThreadEventChannel } from "./channel";
-import type { ThreadEventType } from "./thread-event-emitter";
+import type { ThreadEventChannel, ThreadEventType } from "./channel";
 import { InMemoryChannel } from "./channel-in-memory";
 import { RedisChannel } from "./channel-redis";
 

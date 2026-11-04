@@ -59,6 +59,8 @@ describe("resolveThreadActor", () => {
         kind: "admin",
         userId: "user_001",
         tenantId: "tenant_001",
+        name: "Admin",
+        tenantSlug: "acme",
       },
     });
   });

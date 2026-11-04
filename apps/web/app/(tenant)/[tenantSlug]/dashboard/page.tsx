@@ -45,7 +45,7 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
 
         <div className="flex items-center gap-3">
           <Link href={`/${tenantSlug}/chamados/novo`}>
-            <Button variant="primary" size="sm">
+            <Button variant="default" size="sm">
               + Novo Chamado
             </Button>
           </Link>

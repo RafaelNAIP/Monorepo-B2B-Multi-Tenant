@@ -14,6 +14,7 @@ import { notifyThread } from "@/lib/sse/channel-singleton";
 import { ATTACHMENTS_INVALID } from "@/lib/attachments/data";
 import { ATTACHMENTS_INVALID_MESSAGE, parseAttachmentKeysField } from "@/lib/attachments/form";
 import { resolveThreadActor } from "./actor";
+import { guardCriticalAction } from "@/lib/shared/rate-limit-guard";
 import type { Message } from "./types";
 import type { Ticket } from "@/lib/tickets/types";
 
@@ -125,6 +126,9 @@ export async function createThreadAccessAction(
   const authResult = await requireSession({ role: "admin" });
   if (!authResult.ok) return authResult.errorState;
   const { session } = authResult;
+
+  const limited = await guardCriticalAction("createThreadAccess", session.sub);
+  if (limited) return limited;
 
   const raw = {
     ticketId: formData.get("ticketId") as string,

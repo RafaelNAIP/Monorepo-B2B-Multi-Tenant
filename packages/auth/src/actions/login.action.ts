@@ -1,9 +1,16 @@
 "use server";
 
+import { headers } from "next/headers";
 import { prisma } from "@empresa/db";
 import { loginSchema, type LoginInput } from "../schemas/auth.schema";
 import { setSessionCookie } from "../lib/session";
 import { verifyPassword } from "../lib/password";
+import {
+  clientIpFromHeaders,
+  getRateLimiter,
+  RATE_LIMIT_LOGIN,
+  rateLimitMessage,
+} from "../lib/rate-limit-redis";
 
 // ─── Action State Type ──────────────────────────────────────────────
 
@@ -30,6 +37,13 @@ export async function loginAction(
   _prevState: AuthActionState,
   formData: FormData
 ): Promise<AuthActionState> {
+  // 0. Rate limit por IP (5/min) — antes de validar ou consultar o banco
+  const ip = clientIpFromHeaders(await headers());
+  const limit = await getRateLimiter()(`login:${ip}`, RATE_LIMIT_LOGIN);
+  if (!limit.allowed) {
+    return { success: false, error: rateLimitMessage(limit.retryAfterMs) };
+  }
+
   // 1. Extrair e validar
   const raw = {
     email: formData.get("email"),

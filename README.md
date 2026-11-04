@@ -232,8 +232,12 @@ Create `.env` files in **two locations**:
 DATABASE_URL="mongodb+srv://<user>:<password>@<cluster>.mongodb.net/empresa?retryWrites=true&w=majority"
 JWT_SECRET="a-secure-random-string-at-least-32-characters-long"
 
-# Redis (optional — only needed for production multi-instance SSE)
-# REDIS_URL="redis://default:password@host:6379"
+# Upstash Redis (optional — rate limit and multi-instance SSE; memory fallback if missing)
+# UPSTASH_REDIS_REST_URL="https://<your-db>.upstash.io"
+# UPSTASH_REDIS_REST_TOKEN="your-rest-token"
+
+# Vercel Cron secret for the attachment cleanup job (optional locally)
+# CRON_SECRET="a-random-secret"
 
 # Cloudflare R2 (file uploads — optional, uploads disabled if missing)
 R2_ACCOUNT_ID="your-cloudflare-account-id"
@@ -639,13 +643,15 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 - [x] 🔒 **Security hardening (4 phases)** — HMAC-SHA256 session cookies (Web Crypto, edge-safe), `requireSession()` centralized guard, middleware with signature verification, rate limiting (in-memory sliding window)
 - [x] 📡 **Real-time hardening (5 phases)** — authenticated SSE endpoint, thread token expiration/revocation, `ThreadEventChannel` interface with InMemory/Redis adapters, Vercel `maxDuration`, ADR documented
 - [x] 🧹 **Code cleanup refactoring (6 phases)** — SSE singleton fix, dead code removal, full auth migration to `requireSession()`, Badge decoupled from domain, `ActionState` local to auth package, `$transaction` for ticket code atomicity, Button variant fixes
-- [x] 560 tests passing (strict TDD across 48 test files, 0 `it.fails`)
+- [x] 🚦 **Rate limiting via Redis** — async store on Upstash (sliding window on sorted set, single pipeline), fail-open when Redis is down, memory fallback without `UPSTASH_*`
+- [x] 🚦 **Rate limit in actions** — login by IP (5/min, before any DB query), critical actions by session (20/min) returning `ActionState` errors in PT
+- [x] 📡 **Real `RedisChannel`** — cross-instance SSE fan-out: publish to Upstash list + server-side polling inside the SSE route (de-dup by event id, own-origin skipped)
+- [x] 🚀 **Vercel deploy prep** — `vercel.json` (build + daily cron), attachment cleanup exposed to Vercel Cron via `CRON_SECRET`
+- [x] 598 tests passing (strict TDD across 52 test files, 0 `it.fails`)
 
 ### 🔜 Next Steps (by priority)
 
-- [ ] **Integrate rate limiting into actions/routes** — plug `checkRateLimit` with LOGIN/PRESIGN/CRITICAL presets into Server Actions and presign routes
-- [ ] **Implement real `RedisChannel`** — connect to Redis with ioredis for pub/sub between instances (stub and test contract already exist)
-- [ ] **Rate limiting via Redis** — migrate in-memory store to Redis for multi-instance support
+- [ ] **Rate limit on presign route** — `RATE_LIMIT_PRESIGN` preset is ready; plug `getRateLimiter()` into `POST /api/upload/presign` (returns 429)
 - [ ] **Abstractions** — `StorageProvider` interface over R2, `UserRole` in shared package
 - [ ] **Upload enhancements** — `HeadObject` validation on attach, allow message with attachment only, per-file progress
 - [ ] **E2E tests** — Playwright for critical flows
@@ -657,6 +663,49 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 
 - [ ] Granular role-based access control (RBAC)
 - [ ] Email notifications for thread updates
+- [ ] **Login rate limit by IP + email** — today the key is IP only (`x-forwarded-for`); add a second window keyed by the submitted email to resist distributed brute force and account enumeration
+
+---
+
+## Deploy na Vercel
+
+O app roda em Vercel com Fluid Compute. O `apps/web/vercel.json` já define o build do monorepo e o cron diário de limpeza de anexos.
+
+### 1. Criar o projeto
+
+1. Em [vercel.com/new](https://vercel.com/new), importe o repositório do GitHub.
+2. Em **Root Directory**, selecione `apps/web`. O Vercel lê o `vercel.json` dali.
+3. Framework: **Next.js** (detectado automaticamente). Não altere os comandos de build, eles já estão no `vercel.json`.
+
+### 2. Banco e Redis
+
+1. **MongoDB:** use uma URL do Atlas (ver [Database Setup](#database-setup)).
+2. **Upstash Redis:** no painel do projeto, **Storage → Marketplace → Upstash (Redis)**. A integração preenche `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN` automaticamente.
+
+### 3. Variáveis de ambiente
+
+Em **Settings → Environment Variables**, configure:
+
+| Variável | Obrigatória | Observação |
+| -------- | ----------- | ---------- |
+| `DATABASE_URL` | Sim | URL do MongoDB Atlas |
+| `JWT_SECRET` | Sim | Mínimo 32 caracteres. O app não sobe sem ela |
+| `UPSTASH_REDIS_REST_URL` | Recomendado | Rate limit compartilhado e SSE entre instâncias |
+| `UPSTASH_REDIS_REST_TOKEN` | Recomendado | Par da variável acima |
+| `CRON_SECRET` | Sim, para o cron | A Vercel envia `Authorization: Bearer $CRON_SECRET` |
+| `R2_*` | Para anexos | `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` |
+
+### 4. Cron de limpeza
+
+`GET /api/attachments/cleanup` roda todo dia às 03:00 UTC e remove anexos pendentes (órfãos) com mais de 1 hora. Sem `CRON_SECRET`, a rota responde 403. O `POST` continua disponível para admins logados.
+
+> O plano Hobby da Vercel só aceita crons diários. Para execuções mais frequentes, é preciso o plano Pro.
+
+### 5. Primeiro deploy
+
+Depois do primeiro build, rode o seed contra o banco de produção a partir da sua máquina, com `DATABASE_URL` apontando para o Atlas: `npm run db:seed -w @empresa/db`. Valide o login e uma thread com duas abas abertas em navegadores diferentes para confirmar o fan-out SSE.
+
+> Validado apenas pelos testes automatizados. Não foi feito deploy real: confira o build na primeira execução, pois os comandos de install/build dependem do Root Directory configurado no painel.
 
 ---
 
@@ -676,7 +725,8 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 | `Can't resolve '@aws-sdk/client-s3'` | Missing S3 SDK | Run `npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner` in `apps/web` |
 | `Anexos Inválidos` on ticket/message submit | Attachment association failed | Likely a MongoDB null-vs-absent issue; ensure you're on the latest commit with the two-step find+filter fix |
 | App crashes without clear error | `JWT_SECRET` missing from `.env` | Add `JWT_SECRET` to `apps/web/.env` (min 32 chars) |
-| SSE not working across instances (production) | `REDIS_URL` missing | Add `REDIS_URL` to `apps/web/.env` (see `.env.example`) |
+| SSE not working across instances (production) | `UPSTASH_REDIS_REST_*` missing | Add both variables to the Vercel project (see `.env.example`) |
+| Login says `Muitas tentativas` during testing | IP exceeded 5 login attempts in 1 minute | Wait for the window to clear (`retryAfterMs` is in the message), or restart the dev server to reset the in-memory store |
 | `data and hash arguments required` on login | Users in DB created before `passwordHash` field was added | Run `prisma generate && prisma db push && npm run db:seed` in `packages/db` to recreate users with hashed passwords |
 | `Unknown argument passwordHash` on seed | Prisma Client not regenerated after schema change | Run `npx prisma generate` in `packages/db` before seeding |
 

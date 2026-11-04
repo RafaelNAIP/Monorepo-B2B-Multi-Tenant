@@ -17,3 +17,6 @@ export const FALLBACK_POLL_INTERVAL_MS = 5_000;
 
 /** Quando o navegador desiste do EventSource (readyState CLOSED), tentamos reabrir após este tempo. */
 export const SSE_REOPEN_DELAY_MS = 15_000;
+
+/** Intervalo do polling no Redis para receber eventos de outras instâncias. */
+export const REMOTE_SYNC_INTERVAL_MS = 1500;

@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { prismaMock, resetPrismaMocks } from "../helpers/mock-prisma";
 import { makeFormData } from "../helpers/form-data";
+import { resetRateLimitStore } from "../../../../packages/auth/src/lib/rate-limit";
+
+// headers() do Next exige request scope; o login lê o IP para o rate limit
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers({ "x-forwarded-for": "203.0.113.1" }),
+}));
 
 // Mock @empresa/db
 vi.mock("@empresa/db", () => ({ prisma: prismaMock }));
@@ -51,6 +57,7 @@ const INITIAL_STATE = {
 
 beforeEach(() => {
   resetPrismaMocks();
+  resetRateLimitStore();
   setSessionCookieMock.mockReset();
   verifyPasswordMock.mockReset();
 });

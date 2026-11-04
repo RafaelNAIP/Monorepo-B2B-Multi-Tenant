@@ -13,6 +13,7 @@ import { createTicket, assignTicket, disconnectTicket } from "./data";
 import { notifyThread } from "@/lib/sse/channel-singleton";
 import { ATTACHMENTS_INVALID } from "@/lib/attachments/data";
 import { ATTACHMENTS_INVALID_MESSAGE, parseAttachmentKeysField } from "@/lib/attachments/form";
+import { guardCriticalAction } from "@/lib/shared/rate-limit-guard";
 
 export async function createTicketAction(
   _prevState: ActionState,
@@ -73,6 +74,9 @@ export async function assignTicketAction(
   const authResult = await requireSession({ role: "admin" });
   if (!authResult.ok) return { success: false, error: authResult.errorState.error };
   const { session } = authResult;
+
+  const limited = await guardCriticalAction("assignTicket", session.sub);
+  if (limited) return { success: false, error: limited.error };
 
   const raw = {
     ticketId: formData.get("ticketId") as string,

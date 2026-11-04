@@ -1,6 +1,7 @@
 import type { ThreadEventChannel, ThreadEventType } from "./channel";
 import { InMemoryChannel } from "./channel-in-memory";
-import { RedisChannel } from "./channel-redis";
+import { RedisChannel, type ChannelRedisClient } from "./channel-redis";
+import { getRedis, isRedisConfigured } from "@empresa/auth/redis";
 
 // ─── Singleton ─────────────────────────────────────────────────
 
@@ -11,9 +12,8 @@ const globalStore = globalThis as unknown as Record<
 >;
 
 function createChannel(): ThreadEventChannel {
-  const redisUrl = process.env.REDIS_URL;
-  if (redisUrl) {
-    return new RedisChannel(redisUrl);
+  if (isRedisConfigured()) {
+    return new RedisChannel(getRedis() as unknown as ChannelRedisClient);
   }
   return new InMemoryChannel();
 }

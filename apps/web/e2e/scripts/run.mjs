@@ -33,8 +33,10 @@ const env = {
   E2E_PORT: process.env.E2E_PORT ?? "3100",
 };
 
+const isWindows = process.platform === "win32";
+
 function run(cmd, args, options = {}) {
-  return spawnSync(cmd, args, { stdio: "inherit", env, ...options });
+  return spawnSync(cmd, args, { stdio: "inherit", env, shell: isWindows, ...options });
 }
 
 let exitCode = 0;
@@ -49,6 +51,7 @@ try {
     cwd: webDir,
     stdio: "inherit",
     env,
+    shell: isWindows,
   });
   exitCode = await new Promise((resolve) => child.on("exit", (code) => resolve(code ?? 1)));
 } catch (error) {

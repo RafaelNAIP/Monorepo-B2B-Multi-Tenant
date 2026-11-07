@@ -39,14 +39,12 @@ jobs:
         run: npm test
 
   # ---------------------------------------------------------------------------
-  # Lint (next lint). Não-bloqueante na 1ª versão: o app ainda não tem config
-  # de ESLint versionada, então deixamos informativo até confirmar que passa
-  # limpo. Para tornar bloqueante, remova o `continue-on-error`.
+  # Lint (next lint). Bloqueante: o app tem ESLint + eslint-config-next
+  # (next/core-web-vitals) versionados, então o lint roda sem prompt e passa.
   # ---------------------------------------------------------------------------
   lint:
     name: Lint (next lint)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 

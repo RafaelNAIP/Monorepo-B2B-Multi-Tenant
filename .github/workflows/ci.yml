@@ -124,3 +124,47 @@ jobs:
           DATABASE_URL: "mongodb://localhost:27017/ci?replicaSet=rs0"
           JWT_SECRET: "ci-dummy-secret-com-mais-de-32-caracteres-para-build"
         run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # E2E (Playwright, bloqueante) — SÓ quando o alvo é a main (gate de produção).
+  # Sobe MongoDB em memória (replica set), builda o Next e roda os fluxos reais
+  # no Chromium. Ver apps/web/e2e/scripts/run.mjs.
+  # ---------------------------------------------------------------------------
+  e2e:
+    name: E2E (Playwright — gate da main)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && github.base_ref == 'main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar Prisma Client
+        run: npm run db:generate --workspace @empresa/db
+
+      - name: Instalar Chromium do Playwright
+        run: npm run test:e2e:install
+
+      - name: Rodar E2E
+        # O script sobe o MongoDB em memória e define as variáveis de ambiente.
+        run: npm run test:e2e
+
+      - name: Publicar relatório do Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/e2e/playwright-report
+            apps/web/e2e/test-results
+          retention-days: 7

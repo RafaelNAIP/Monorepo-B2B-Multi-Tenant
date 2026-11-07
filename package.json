@@ -9,7 +9,9 @@
   ],
   "scripts": {
     "dev": "npm -w @empresa/web run dev",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "node apps/web/e2e/scripts/run.mjs",
+    "test:e2e:install": "npm exec -w @empresa/web -- playwright install --with-deps chromium"
   },
   "keywords": [],
   "author": "",

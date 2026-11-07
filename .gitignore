@@ -38,3 +38,11 @@ yarn-error.log*
 
 # TypeScript
 *.tsbuildinfo
+
+# E2E (Playwright)
+apps/web/e2e/.auth/
+apps/web/e2e/playwright-report/
+apps/web/e2e/test-results/
+playwright-report/
+test-results/
+blob-report/

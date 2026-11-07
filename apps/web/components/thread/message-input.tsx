@@ -78,6 +78,7 @@ export function MessageInput({
         <input type="hidden" name="senderRole" value={senderRole} />
         <input type="hidden" name="senderName" value={senderName} />
         <input type="hidden" name="tenantSlug" value={tenantSlug} />
+        {threadToken && <input type="hidden" name="threadToken" value={threadToken} />}
 
         {!disabled && (
           <FileUploader

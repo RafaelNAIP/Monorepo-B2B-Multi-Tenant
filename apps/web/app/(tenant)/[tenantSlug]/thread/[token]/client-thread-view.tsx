@@ -61,6 +61,7 @@ export function ClientThreadView({
           ticket={liveTicket}
           tenantSlug={tenantSlug}
           primaryColor={tenant.theme.primaryColor}
+          threadToken={threadToken}
         />
       )}
 

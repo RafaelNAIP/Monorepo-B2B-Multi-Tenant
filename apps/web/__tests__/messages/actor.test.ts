@@ -65,17 +65,18 @@ describe("resolveThreadActor", () => {
     });
   });
 
-  it("prioriza sessão sobre token de thread quando ambos existem", async () => {
+  it("prioriza threadToken sobre sessão quando ambos existem", async () => {
     mockGetSession.mockResolvedValue(adminSession);
+    mockGetThreadAccessByToken.mockResolvedValue(threadAccess);
 
     const result = await resolveThreadActor(TICKET_ID, "valid-thread-token");
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.actor.kind).toBe("admin");
+      expect(result.actor.kind).toBe("client");
     }
-    // Não deve nem consultar o token
-    expect(mockGetThreadAccessByToken).not.toHaveBeenCalled();
+    // Não deve nem consultar a sessão
+    expect(mockGetSession).not.toHaveBeenCalled();
   });
 
   // ── Caminho 2: Token de thread (cliente) ──

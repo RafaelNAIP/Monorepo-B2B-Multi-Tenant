@@ -11,6 +11,8 @@ interface FeedbackCardProps {
   ticket: Ticket;
   tenantSlug: string;
   primaryColor?: string;
+  /** Token da thread pública — necessário para autenticar o feedback de clientes anônimos */
+  threadToken?: string;
 }
 
 const initialState: MessageActionState = INITIAL_ACTION_STATE;
@@ -23,6 +25,7 @@ export function FeedbackCard({
   ticket,
   tenantSlug,
   primaryColor = DEFAULT_PRIMARY_COLOR,
+  threadToken,
 }: FeedbackCardProps) {
   const [state, formAction, isPending] = useActionState(
     submitFeedbackAction,
@@ -75,6 +78,7 @@ export function FeedbackCard({
           <input type="hidden" name="ticketId" value={ticket.id} />
           <input type="hidden" name="resolution" value="resolved" />
           <input type="hidden" name="tenantSlug" value={tenantSlug} />
+          {threadToken && <input type="hidden" name="threadToken" value={threadToken} />}
           <button
             type="submit"
             disabled={isPending}
@@ -89,6 +93,7 @@ export function FeedbackCard({
           <input type="hidden" name="ticketId" value={ticket.id} />
           <input type="hidden" name="resolution" value="unresolved" />
           <input type="hidden" name="tenantSlug" value={tenantSlug} />
+          {threadToken && <input type="hidden" name="threadToken" value={threadToken} />}
           <button
             type="submit"
             disabled={isPending}

@@ -381,6 +381,23 @@ The real-time (SSE) tests live in `__tests__/sse/` and test the **real** `Thread
 
 ---
 
+## E2E (Playwright)
+
+Fluxos críticos rodados no Chromium contra o app de produção (`next build` + `next start`), com MongoDB em memória em replica set.
+
+```bash
+npm run test:e2e:install   # instala o Chromium do Playwright (uma vez)
+npm run test:e2e           # builda o app, sobe o MongoDB e roda os specs
+```
+
+Variáveis úteis: `E2E_SKIP_BUILD=1` reaproveita o build existente; `PLAYWRIGHT_ARGS="--grep login"` filtra specs.
+
+O que cobre (`apps/web/e2e/specs`): login e proteção de rotas, lista/filtros/paginação do cliente, criar chamado, admin assumir chamado, editor de tema, isolamento multi-tenant, thread pública admin↔cliente, feedback e auto-close por prazo, e anexos com o R2 interceptado.
+
+Como funciona: cada spec reconstrói o mundo de teste com IDs fixos (`fixtures/world.ts`), e o login real roda uma vez por papel no projeto `setup`, reaproveitado via `storageState`. Cada teste recebe um `X-Forwarded-For` próprio para não estourar o limite de login por IP. O E2E roda em um único worker, pois os specs compartilham o banco.
+
+Não é executado no `dev` por padrão: roda no CI como gate da `main` (job `e2e`). Para rodar localmente é preciso `npm run db:generate` antes, já que os specs importam o Prisma client.
+
 ## Architecture
 
 ### Multi-Tenancy
@@ -655,7 +672,7 @@ The Red → Green → Refactor cycle is mandatory for every new feature:
 - [ ] **Rate limit on presign route** — `RATE_LIMIT_PRESIGN` preset is ready; plug `getRateLimiter()` into `POST /api/upload/presign` (returns 429)
 - [ ] **Abstractions** — `StorageProvider` interface over R2, `UserRole` in shared package
 - [ ] **Upload enhancements** — `HeadObject` validation on attach, allow message with attachment only, per-file progress
-- [ ] **E2E tests** — Playwright for critical flows
+- [x] **E2E tests** — Playwright for critical flows (camada implementada; ver seção E2E. Validação no CI)
 - [ ] **CI/CD** — GitHub Actions with Turbo remote cache
 - [ ] **Internationalization (i18n)** — next-intl for multi-language support
 - [ ] **Observability** — structured logging + metrics

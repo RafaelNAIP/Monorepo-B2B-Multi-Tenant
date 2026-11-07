@@ -14,7 +14,7 @@ test.describe("Criar chamado (cliente)", () => {
     await page.getByRole("button", { name: "Criar Chamado", exact: true }).click();
 
     await expect(page.getByText("Título deve ter ao menos 5 caracteres")).toBeVisible();
-    await expect(page.getByText("Selecione uma categoria")).toBeVisible();
+    await expect(page.locator("#category-error")).toHaveText("Selecione uma categoria");
     await expect(page.getByText("Descrição deve ter ao menos 10 caracteres")).toBeVisible();
   });
 

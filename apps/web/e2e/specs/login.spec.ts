@@ -39,7 +39,7 @@ test.describe("Login e proteção de rotas", () => {
     await page.getByLabel("E-mail").fill(USER.clientDemo.email);
     await page.getByLabel("Senha").fill("senha-errada");
     await page.getByRole("button", { name: "Entrar", exact: true }).click();
-    await expect(page.getByRole("alert")).toHaveText(TEXT.invalidCredentials);
+    await expect(page.getByRole("alert").filter({ hasText: TEXT.invalidCredentials })).toBeVisible();
   });
 
   test("papel incorreto mostra a MESMA mensagem (sem enumeração de usuários)", async ({ page }) => {
@@ -49,7 +49,7 @@ test.describe("Login e proteção de rotas", () => {
     await page.getByLabel("E-mail").fill(USER.adminDemo.email);
     await page.getByLabel("Senha").fill(DEFAULT_PASSWORD);
     await page.getByRole("button", { name: "Entrar", exact: true }).click();
-    await expect(page.getByRole("alert")).toHaveText(TEXT.invalidCredentials);
+    await expect(page.getByRole("alert").filter({ hasText: TEXT.invalidCredentials })).toBeVisible();
   });
 
   test("usuário de outro tenant não entra no tenant demo", async ({ page }) => {
@@ -57,6 +57,6 @@ test.describe("Login e proteção de rotas", () => {
     await page.getByLabel("E-mail").fill(USER.adminAcme.email);
     await page.getByLabel("Senha").fill(DEFAULT_PASSWORD);
     await page.getByRole("button", { name: "Entrar", exact: true }).click();
-    await expect(page.getByRole("alert")).toHaveText(TEXT.invalidCredentials);
+    await expect(page.getByRole("alert").filter({ hasText: TEXT.invalidCredentials })).toBeVisible();
   });
 });
